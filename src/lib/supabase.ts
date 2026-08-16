@@ -8,7 +8,7 @@
  */
 
 export type SupabaseDisabledClient = {
-  from: (...args: any[]) => never;
+  from: (...args: any[]) => any;
 };
 
 const disabledClient: SupabaseDisabledClient = {
