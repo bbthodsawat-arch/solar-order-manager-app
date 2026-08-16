@@ -1,0 +1,611 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    /* Brand Baseline */
+    --brand-primary: #3b82f6;
+    --brand-primary-soft: rgba(59, 130, 246, 0.1);
+    --brand-primary-border: rgba(59, 130, 246, 0.2);
+    --brand-primary-text: #3b82f6;
+
+    /* Global Design System - Semantic Color Tokens (Light) */
+    --sys-color-background: #f8fafc;
+    --sys-color-surface: #ffffff;
+    --sys-color-card: #ffffff;
+    --sys-color-border: #e2e8f0;
+    
+    --sys-color-text-primary: #0f172a;
+    --sys-color-text-secondary: #475569;
+    --sys-color-text-muted: #94a3b8;
+
+    --sys-color-success: #10b981;
+    --sys-color-warning: #f59e0b;
+    --sys-color-error: #ef4444;
+    --sys-color-info: #3b82f6;
+
+    /* Spacing & Layout Tokens */
+    --sys-spacing-page: 1.5rem;
+    --sys-spacing-section: 2rem;
+    --sys-spacing-card: 1.25rem;
+    --sys-spacing-component: 0.75rem;
+
+    /* Radius Tokens */
+    --sys-radius-sm: 0.375rem;
+    --sys-radius-md: 0.5rem;
+    --sys-radius-lg: 0.75rem;
+    --sys-radius-xl: 1rem;
+    --sys-radius-card: 1.5rem;
+  }
+
+  .dark {
+    /* Global Design System - Semantic Color Tokens (Dark) */
+    --sys-color-background: #020617;
+    --sys-color-surface: #0f172a;
+    --sys-color-card: #0f172a;
+    --sys-color-border: #1e293b;
+    
+    --sys-color-text-primary: #f8fafc;
+    --sys-color-text-secondary: #94a3b8;
+    --sys-color-text-muted: #475569;
+  }
+
+  body {
+    font-family: 'Prompt', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #f8fafc;
+    color: #0f172a;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .bg-brand { background-color: var(--brand-primary); }
+  .text-brand { color: var(--brand-primary-text); }
+  .border-brand { border-color: var(--brand-primary); }
+  .bg-brand-soft { background-color: var(--brand-primary-soft); }
+  .text-brand-soft { color: var(--brand-primary-soft); }
+  .border-brand-soft { border-color: var(--brand-primary-border); }
+}
+
+/* Custom Soft Neumorphic & Dimensional Flat Card Utilities */
+.soft-neumorphic {
+  background: #ffffff;
+  box-shadow: 
+    8px 8px 16px rgba(203, 213, 225, 0.35),
+    -8px -8px 16px rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(241, 245, 249, 0.9);
+}
+
+.dark .soft-neumorphic {
+  background: #0f172a;
+  box-shadow: 
+    6px 6px 16px rgba(2, 6, 23, 0.6),
+    -4px -4px 12px rgba(30, 41, 59, 0.2);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+}
+
+/* Dimensional Floating Card Effect */
+.dimensional-card {
+  box-shadow: 
+    0 10px 25px -5px rgba(15, 23, 42, 0.04),
+    0 8px 10px -6px rgba(15, 23, 42, 0.02);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dimensional-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 20px 30px -10px rgba(15, 23, 42, 0.08),
+    0 10px 12px -8px rgba(15, 23, 42, 0.04);
+}
+
+/* Custom Pastel Background Themes */
+.pastel-mint {
+  background-color: #e6f4ea;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.dark .pastel-mint {
+  background-color: rgba(6, 78, 59, 0.35);
+  color: #6ee7b7;
+  border-color: rgba(5, 150, 105, 0.4);
+}
+
+.pastel-pink {
+  background-color: #fce8e6;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+.dark .pastel-pink {
+  background-color: rgba(136, 19, 55, 0.35);
+  color: #fca5a5;
+  border-color: rgba(225, 29, 72, 0.4);
+}
+
+.pastel-yellow {
+  background-color: #fef7e0;
+  color: #b45309;
+  border-color: #fde68a;
+}
+.dark .pastel-yellow {
+  background-color: rgba(120, 53, 15, 0.35);
+  color: #fde68a;
+  border-color: rgba(217, 119, 6, 0.4);
+}
+
+.pastel-blue {
+  background-color: #e8f0fe;
+  color: #0369a1;
+  border-color: #bae6fd;
+}
+.dark .pastel-blue {
+  background-color: rgba(12, 74, 110, 0.35);
+  color: #7dd3fc;
+  border-color: rgba(2, 132, 199, 0.4);
+}
+
+.pastel-purple {
+  background-color: #f3e8ff;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+.dark .pastel-purple {
+  background-color: rgba(88, 28, 135, 0.35);
+  color: #c084fc;
+  border-color: rgba(147, 51, 234, 0.4);
+}
+
+/* Dark Mode Form Input Contrast Enhancements */
+.dark input[type="text"],
+.dark input[type="number"],
+.dark input[type="datetime-local"],
+.dark input[type="date"],
+.dark select,
+.dark textarea {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+.dark input[type="text"]:focus,
+.dark input[type="number"]:focus,
+.dark input[type="datetime-local"]:focus,
+.dark input[type="date"]:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #fbbf24 !important;
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2) !important;
+}
+
+/* Custom Minimal Luxury Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Keyframe animations for subtle luxury feel */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+
+/* Minimal Luxury Glassmorphism Utilities */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.8);
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* ==========================================================================
+   Display Density: Compact Mode Global Overrides
+   ========================================================================== */
+.density-compact {
+  font-size: 13px !important;
+}
+
+/* Spacings and Padding Adjustments */
+.density-compact .p-6,
+.density-compact .p-8,
+.density-compact .sm\:p-8,
+.density-compact .lg\:p-8 {
+  padding: 1rem !important;
+}
+
+.density-compact .p-5,
+.density-compact .p-4 {
+  padding: 0.75rem !important;
+}
+
+.density-compact .py-6,
+.density-compact .py-8 {
+  padding-top: 1rem !important;
+  padding-bottom: 1rem !important;
+}
+
+.density-compact .py-4 {
+  padding-top: 0.5rem !important;
+  padding-bottom: 0.5rem !important;
+}
+
+.density-compact .py-3 {
+  padding-top: 0.4rem !important;
+  padding-bottom: 0.4rem !important;
+}
+
+.density-compact .py-3\.5 {
+  padding-top: 0.45rem !important;
+  padding-bottom: 0.45rem !important;
+}
+
+.density-compact .px-6,
+.density-compact .px-8,
+.density-compact .sm\:px-8 {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+}
+
+.density-compact .px-5 {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+}
+
+.density-compact .mb-6,
+.density-compact .my-6 {
+  margin-bottom: 1rem !important;
+}
+
+.density-compact .mb-4,
+.density-compact .my-4 {
+  margin-bottom: 0.6rem !important;
+}
+
+.density-compact .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 1rem !important;
+}
+
+.density-compact .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.6rem !important;
+}
+
+.density-compact .gap-6 {
+  gap: 1rem !important;
+}
+
+.density-compact .gap-4 {
+  gap: 0.6rem !important;
+}
+
+/* Font Sizing Scaling */
+.density-compact .text-3xl {
+  font-size: 1.5rem !important;
+}
+
+.density-compact .text-2xl {
+  font-size: 1.2rem !important;
+}
+
+.density-compact .text-xl {
+  font-size: 1.05rem !important;
+}
+
+.density-compact .text-lg {
+  font-size: 0.9rem !important;
+}
+
+.density-compact .text-base {
+  font-size: 0.8rem !important;
+}
+
+.density-compact .text-sm {
+  font-size: 0.72rem !important;
+}
+
+.density-compact .text-xs,
+.density-compact .text-\[11px\] {
+  font-size: 10px !important;
+}
+
+/* Layout Header Adjustments */
+.density-compact header .h-16 {
+  height: 3.25rem !important;
+}
+
+.density-compact header h1 {
+  font-size: 0.95rem !important;
+}
+
+.density-compact header img {
+  width: 2rem !important;
+  height: 2rem !important;
+}
+
+/* Table Density Enhancements for viewing more rows */
+.density-compact table th {
+  padding: 0.35rem 0.5rem !important;
+  font-size: 10px !important;
+}
+
+.density-compact table td {
+  padding: 0.35rem 0.5rem !important;
+  font-size: 11px !important;
+}
+
+/* Card and Container Radius Tweaks */
+.density-compact .rounded-3xl {
+  border-radius: 1rem !important;
+}
+
+.density-compact .rounded-2xl {
+  border-radius: 0.75rem !important;
+}
+
+.density-compact .rounded-xl {
+  border-radius: 0.5rem !important;
+}
+
+/* Button & Form Input Compactness */
+.density-compact input,
+.density-compact select,
+.density-compact textarea {
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+  font-size: 11px !important;
+}
+
+.density-compact button {
+  font-size: 11px !important;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print\:visible, .print\:visible * {
+    visibility: visible;
+  }
+  .print\:visible {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  @page {
+    margin: 0.5cm;
+  }
+}
+
+/* ==========================================================================
+   SOM VISUAL DESIGN SYSTEM ENGINE & DYNAMIC TOKENS
+   ========================================================================== */
+
+/* Typography Rules */
+html[data-font="prompt"],
+html[data-font="prompt"] body {
+  font-family: 'Prompt', 'Plus Jakarta Sans', -apple-system, sans-serif !important;
+}
+
+html[data-font="sarabun"],
+html[data-font="sarabun"] body {
+  font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+html[data-font="chakra"],
+html[data-font="chakra"] body {
+  font-family: 'Chakra Petch', monospace, sans-serif !important;
+}
+
+html[data-font="kanit"],
+html[data-font="kanit"] body {
+  font-family: 'Kanit', sans-serif !important;
+}
+
+/* Radius Token Overrides */
+html[data-radius="none"] .rounded-3xl,
+html[data-radius="none"] .rounded-2xl,
+html[data-radius="none"] .rounded-xl,
+html[data-radius="none"] .rounded-lg {
+  border-radius: 0px !important;
+}
+
+html[data-radius="sm"] .rounded-3xl,
+html[data-radius="sm"] .rounded-2xl,
+html[data-radius="sm"] .rounded-xl {
+  border-radius: 6px !important;
+}
+
+html[data-radius="md"] .rounded-3xl,
+html[data-radius="md"] .rounded-2xl {
+  border-radius: 10px !important;
+}
+
+html[data-radius="lg"] .rounded-3xl {
+  border-radius: 14px !important;
+}
+
+html[data-radius="xl"] .rounded-3xl {
+  border-radius: 20px !important;
+}
+
+html[data-radius="2xl"] .rounded-3xl {
+  border-radius: 28px !important;
+}
+
+html[data-radius="pill"] .rounded-3xl {
+  border-radius: 36px !important;
+}
+
+/* Shadow Tokens */
+html[data-shadow="none"] .shadow-sm,
+html[data-shadow="none"] .shadow-md,
+html[data-shadow="none"] .shadow-lg {
+  box-shadow: none !important;
+}
+
+html[data-shadow="soft"] .shadow-sm,
+html[data-shadow="soft"] .shadow-md {
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.04) !important;
+}
+
+html[data-shadow="deep"] .shadow-sm,
+html[data-shadow="deep"] .shadow-md {
+  box-shadow: 0 15px 30px -8px rgba(15, 23, 42, 0.12), 0 6px 12px -4px rgba(15, 23, 42, 0.06) !important;
+}
+
+html[data-shadow="glow"] .shadow-sm,
+html[data-shadow="glow"] .shadow-md {
+  box-shadow: 0 0 20px -2px var(--brand-primary-soft, rgba(217, 119, 6, 0.25)) !important;
+}
+
+/* Border Style Tokens */
+html[data-border="solid"] .border-slate-200,
+html[data-border="solid"] .border-slate-200\/80,
+html[data-border="solid"] .border-slate-200\/70 {
+  border-width: 2px !important;
+  border-color: #cbd5e1 !important;
+}
+.dark html[data-border="solid"] .border-slate-800,
+.dark html[data-border="solid"] .border-slate-700 {
+  border-width: 2px !important;
+  border-color: #475569 !important;
+}
+
+html[data-border="dashed"] .border-slate-200,
+html[data-border="dashed"] .border-slate-200\/80 {
+  border-style: dashed !important;
+}
+
+html[data-border="none"] .border-slate-200,
+html[data-border="none"] .border-slate-200\/80,
+html[data-border="none"] .border-slate-100 {
+  border-color: transparent !important;
+}
+
+/* Visual Style Variations */
+/* 1. Glassmorphism */
+html[data-style="glassmorphism"] .bg-white,
+html[data-style="glassmorphism"] .bg-white\/95 {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.dark html[data-style="glassmorphism"] .bg-slate-900,
+.dark html[data-style="glassmorphism"] .bg-slate-900\/95 {
+  background-color: rgba(15, 23, 42, 0.82) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-color: rgba(51, 65, 85, 0.6) !important;
+}
+
+/* 2. Soft Neumorphic */
+html[data-style="soft-neumorphic"] .bg-white,
+html[data-style="soft-neumorphic"] .bg-white\/95 {
+  background-color: #ffffff !important;
+  box-shadow: 6px 6px 14px rgba(203, 213, 225, 0.4), -6px -6px 14px rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(241, 245, 249, 0.9) !important;
+}
+
+.dark html[data-style="soft-neumorphic"] .bg-slate-900,
+.dark html[data-style="soft-neumorphic"] .bg-slate-900\/95 {
+  background-color: #0f172a !important;
+  box-shadow: 6px 6px 14px rgba(2, 6, 23, 0.7), -4px -4px 12px rgba(30, 41, 59, 0.25) !important;
+  border-color: rgba(30, 41, 59, 0.8) !important;
+}
+
+/* 3. Cute Pastel */
+html[data-style="cute-pastel"] .rounded-3xl {
+  border-radius: 28px !important;
+}
+
+html[data-style="cute-pastel"] .shadow-sm {
+  box-shadow: 0 8px 20px -4px rgba(236, 72, 153, 0.08) !important;
+}
+
+/* 4. High Contrast */
+html[data-style="high-contrast"] .bg-white,
+html[data-style="high-contrast"] .bg-slate-50 {
+  border-color: #0f172a !important;
+  border-width: 2px !important;
+}
+
+.dark html[data-style="high-contrast"] .bg-slate-900,
+.dark html[data-style="high-contrast"] .bg-slate-950 {
+  border-color: #f8fafc !important;
+  border-width: 2px !important;
+}
+
+/* Density Spacious */
+html[data-density="spacious"] main {
+  padding-top: 2rem !important;
+  padding-bottom: 3rem !important;
+}
+
+html[data-density="spacious"] .space-y-6 > * + * {
+  margin-top: 2rem !important;
+}
+
+html[data-density="spacious"] .p-6 {
+  padding: 2rem !important;
+}
+

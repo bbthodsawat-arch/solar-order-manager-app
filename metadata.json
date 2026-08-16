@@ -1,0 +1,11 @@
+{
+  "name": "Remix ระบบบริการจัดการร้านโซล่าเซลล์",
+  "description": "ระบบบันทึกบัญชีรายรับ รายจ่าย และสรุปกำไรขาดทุน ใช้งานผ่านมือถือแบบ PWA พร้อมระบบ Dashboard และการจัดการประวัติรายการ",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

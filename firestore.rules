@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Config settings are readable by anyone so app initialization works smoothly before or after login
+    match /config/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Settings collection for company settings
+    match /settings/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Users collection is readable so username login lookups work before auth state resolves
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null;
+    }
+
+    // Transactions collection - accessible for reading and writing
+    match /transactions/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Recurring transactions collection
+    match /recurring_transactions/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Categories collection
+    match /categories/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Quick notes collection
+    match /quick_notes/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Customer records collection
+    match /customers/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Appointments and installation schedules collection
+    match /appointments/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Product warranties collection
+    match /warranties/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Audit logs collection
+    match /audit_logs/{document=**} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if request.auth != null && (
+        request.auth.token.email.toLowerCase() == 'b.b.thodsawat@gmail.com' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial transaction record for solar sales or expenses",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number", "description": "Transaction amount in THB" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "category": { "type": "string" },
+        "detail": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["amount", "type", "category", "date"]
+    },
+    "RecurringTransaction": {
+      "title": "RecurringTransaction",
+      "description": "Template for automated recurring transactions",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "category": { "type": "string" },
+        "interval": { "type": "string", "enum": ["daily", "weekly", "monthly"] },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["title", "amount", "type", "category"]
+    },
+    "QuickNote": {
+      "title": "QuickNote",
+      "description": "Quick operational or transaction note",
+      "type": "object",
+      "properties": {
+        "content": { "type": "string" },
+        "isImportant": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["content"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Application settings and configurations",
+      "type": "object",
+      "properties": {
+        "dailyRevenueGoal": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile and role permissions",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "CompanySettings": {
+      "title": "CompanySettings",
+      "description": "Dedicated company configuration, shop name, translations, and logo options",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Shop or store name" },
+        "companyNameTh": { "type": "string", "description": "Company name in Thai" },
+        "companyNameEn": { "type": "string", "description": "Company name in English" },
+        "showLogo": { "type": "boolean", "description": "Toggle to show/hide the header logo" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/settings/{settingId}": {
+      "schema": "CompanySettings",
+      "description": "Collection storing dedicated company settings"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Collection storing all income and expense transactions"
+    },
+    "/recurring_transactions/{recurringId}": {
+      "schema": "RecurringTransaction",
+      "description": "Collection storing recurring payment templates"
+    },
+    "/quick_notes/{noteId}": {
+      "schema": "QuickNote",
+      "description": "Collection storing quick notes and annotations"
+    },
+    "/config/{configId}": {
+      "schema": "AppConfig",
+      "description": "Collection storing global app configuration and budgets"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection storing user profiles and roles"
+    }
+  }
+}
