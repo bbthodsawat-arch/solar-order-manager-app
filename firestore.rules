@@ -6,6 +6,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function userDoc() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function isOwner() {
       return signedIn()
         && request.auth.token.email != null
@@ -13,16 +22,22 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isOwner()
-        || (signedIn()
-          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      return isOwner() || (userDoc() && userData().role == 'admin');
+    }
+
+    function hasPermission(permission) {
+      return isAdmin()
+        || (userDoc()
+          && userData().status == 'active'
+          && userData().permissions != null
+          && userData().permissions[permission] == true);
     }
 
     // User profiles are the authorization source for the application.
-    // Prevent authenticated users from granting themselves elevated roles.
+    // A new authenticated user can create only their own staff profile unless
+    // they are the designated owner. Elevated roles remain admin-controlled.
     match /users/{userId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (userId == request.auth.uid || isAdmin());
       allow create: if signedIn()
         && userId == request.auth.uid
         && (request.resource.data.role == 'staff' || isOwner());
@@ -35,17 +50,43 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Known application collections remain authenticated-only while the
-    // collection/CRUD/role matrix is completed. Unknown collections are denied.
+    // Financial transactions: authorization follows the application's
+    // transaction permissions instead of merely requiring authentication.
     match /transactions/{document=**} {
-      allow read, write: if signedIn();
+      allow read: if hasPermission('canViewDashboard') || hasPermission('canViewReports') || hasPermission('canAddTransactions');
+      allow create: if hasPermission('canAddTransactions');
+      allow update: if hasPermission('canEditTransactions');
+      allow delete: if hasPermission('canDeleteTransactions');
     }
+
     match /recurring_transactions/{document=**} {
-      allow read, write: if signedIn();
+      allow read, create, update, delete: if hasPermission('canManageSettings');
     }
+
     match /categories/{document=**} {
-      allow read, write: if signedIn();
+      allow read, create, update, delete: if hasPermission('canManageSettings');
     }
+
+    match /settings/{document=**} {
+      allow read, create, update, delete: if hasPermission('canManageSettings');
+    }
+
+    match /config/{document=**} {
+      allow read: if signedIn();
+      allow create, update, delete: if hasPermission('canManageSettings');
+    }
+
+    match /audit_logs/{document=**} {
+      allow read: if hasPermission('canViewAuditLogs');
+      // Audit records may be written by authenticated application flows, but
+      // clients cannot modify/delete existing records through this rule.
+      allow create: if signedIn();
+      allow update, delete: if false;
+    }
+
+    // These business collections do not yet have dedicated UI permission
+    // flags in the current permission model. Keep them authenticated-only
+    // until their CRUD matrix is audited rather than granting public access.
     match /quick_notes/{document=**} {
       allow read, write: if signedIn();
     }
@@ -58,17 +99,8 @@ service cloud.firestore {
     match /warranties/{document=**} {
       allow read, write: if signedIn();
     }
-    match /settings/{document=**} {
-      allow read, write: if signedIn();
-    }
-    match /config/{document=**} {
-      allow read, write: if signedIn();
-    }
-    match /audit_logs/{document=**} {
-      allow read, write: if signedIn();
-    }
 
-    // No catch-all authenticated write rule: collections not explicitly
-    // mapped above are denied until audited and intentionally added.
+    // Unknown collections are denied by default because no catch-all allow
+    // rule is defined.
   }
 }
