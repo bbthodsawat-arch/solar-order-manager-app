@@ -2,10 +2,43 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Temporary baseline: require Firebase Authentication for all application data.
-    // Collection-specific authorization should be tightened in the next hardening pass.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() == 'b.b.thodsawat@gmail.com';
+    }
+
+    function isAdmin() {
+      return isOwner()
+        || (signedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    // User profiles are the authorization source for the application.
+    // Prevent authenticated users from granting themselves elevated roles.
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && userId == request.auth.uid
+        && (request.resource.data.role == 'staff' || isOwner());
+      allow update: if isAdmin()
+        || (signedIn()
+          && userId == request.auth.uid
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.permissions == resource.data.permissions
+          && request.resource.data.status == resource.data.status);
+      allow delete: if isAdmin();
+    }
+
+    // All remaining application data requires authentication until each
+    // collection has been mapped to its exact CRUD/role requirements.
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if signedIn();
     }
   }
 }
