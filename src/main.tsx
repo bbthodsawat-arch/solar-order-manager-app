@@ -1,6 +1,7 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import SupabaseAuthGate from './components/SupabaseAuthGate';
 import './index.css';
 
 // Unregister stale service workers in development environment to avoid stale code caching
@@ -26,6 +27,8 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <SupabaseAuthGate>
+      <App />
+    </SupabaseAuthGate>
   </StrictMode>,
 );
