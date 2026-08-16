@@ -7,14 +7,15 @@ service cloud.firestore {
     }
 
     function userDoc() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
     function userData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    // Emergency owner bootstrap remains explicit in Rules only. The client
+    // application never uses email to elevate its local role.
     function isOwner() {
       return signedIn()
         && request.auth.token.email != null
@@ -33,14 +34,11 @@ service cloud.firestore {
           && userData().permissions[permission] == true);
     }
 
-    // User profiles are the authorization source for the application.
-    // A new authenticated user can create only their own staff profile unless
-    // they are the designated owner. Elevated roles remain admin-controlled.
     match /users/{userId} {
       allow read: if signedIn() && (userId == request.auth.uid || isAdmin());
       allow create: if signedIn()
         && userId == request.auth.uid
-        && (request.resource.data.role == 'staff' || isOwner());
+        && request.resource.data.role == 'staff';
       allow update: if isAdmin()
         || (signedIn()
           && userId == request.auth.uid
@@ -50,8 +48,6 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Financial transactions: authorization follows the application's
-    // transaction permissions instead of merely requiring authentication.
     match /transactions/{document=**} {
       allow read: if hasPermission('canViewDashboard') || hasPermission('canViewReports') || hasPermission('canAddTransactions');
       allow create: if hasPermission('canAddTransactions');
@@ -78,29 +74,40 @@ service cloud.firestore {
 
     match /audit_logs/{document=**} {
       allow read: if hasPermission('canViewAuditLogs');
-      // Audit records may be written by authenticated application flows, but
-      // clients cannot modify/delete existing records through this rule.
       allow create: if signedIn();
       allow update, delete: if false;
     }
 
-    // These business collections do not yet have dedicated UI permission
-    // flags in the current permission model. Keep them authenticated-only
-    // until their CRUD matrix is audited rather than granting public access.
-    match /quick_notes/{document=**} {
-      allow read, write: if signedIn();
-    }
+    // Business data: use existing application permissions. Customer/appointment/
+    // warranty operations are part of the authenticated sales/order workflow.
     match /customers/{document=**} {
-      allow read, write: if signedIn();
-    }
-    match /appointments/{document=**} {
-      allow read, write: if signedIn();
-    }
-    match /warranties/{document=**} {
-      allow read, write: if signedIn();
+      allow read: if hasPermission('canViewDashboard') || hasPermission('canViewReports') || hasPermission('canAddTransactions');
+      allow create: if hasPermission('canAddTransactions') || hasPermission('canManageSettings');
+      allow update: if hasPermission('canEditTransactions') || hasPermission('canManageSettings');
+      allow delete: if hasPermission('canDeleteTransactions') || hasPermission('canManageSettings');
     }
 
-    // Unknown collections are denied by default because no catch-all allow
-    // rule is defined.
+    match /appointments/{document=**} {
+      allow read: if hasPermission('canViewDashboard') || hasPermission('canViewReports') || hasPermission('canAddTransactions');
+      allow create: if hasPermission('canAddTransactions') || hasPermission('canManageSettings');
+      allow update: if hasPermission('canEditTransactions') || hasPermission('canManageSettings');
+      allow delete: if hasPermission('canDeleteTransactions') || hasPermission('canManageSettings');
+    }
+
+    match /warranties/{document=**} {
+      allow read: if hasPermission('canViewDashboard') || hasPermission('canViewReports') || hasPermission('canAddTransactions');
+      allow create: if hasPermission('canAddTransactions') || hasPermission('canManageSettings');
+      allow update: if hasPermission('canEditTransactions') || hasPermission('canManageSettings');
+      allow delete: if hasPermission('canDeleteTransactions') || hasPermission('canManageSettings');
+    }
+
+    match /quick_notes/{document=**} {
+      allow read: if hasPermission('canViewDashboard') || hasPermission('canViewReports');
+      allow create: if hasPermission('canAddTransactions');
+      allow update: if hasPermission('canEditTransactions');
+      allow delete: if hasPermission('canDeleteTransactions');
+    }
+
+    // No catch-all allow rule: unknown collections are denied by default.
   }
 }
