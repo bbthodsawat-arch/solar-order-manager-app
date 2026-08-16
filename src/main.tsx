@@ -1,34 +1,25 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
-import SupabaseAuthGate from './components/SupabaseAuthGate';
 import './index.css';
 
-// Unregister stale service workers in development environment to avoid stale code caching
+// Remove legacy service workers so production always loads the current Vite bundle.
 if ('serviceWorker' in navigator) {
-  if (import.meta.env.DEV) {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (const registration of registrations) {
-        registration.unregister();
-      }
-    });
-  } else {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js')
-        .then((registration) => {
-          console.log('[Service Worker] Registered successfully with scope:', registration.scope);
-        })
-        .catch((error) => {
-          console.error('[Service Worker] Registration failed:', error);
-        });
-    });
-  }
+  window.addEventListener('load', async () => {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+      console.log('[Service Worker] Legacy registrations/caches cleared');
+    } catch (error) {
+      console.error('[Service Worker] Cleanup failed:', error);
+    }
+  });
 }
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <SupabaseAuthGate>
-      <App />
-    </SupabaseAuthGate>
+    <App />
   </StrictMode>,
 );
