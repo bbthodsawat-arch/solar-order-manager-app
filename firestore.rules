@@ -35,10 +35,40 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // All remaining application data requires authentication until each
-    // collection has been mapped to its exact CRUD/role requirements.
-    match /{document=**} {
+    // Known application collections remain authenticated-only while the
+    // collection/CRUD/role matrix is completed. Unknown collections are denied.
+    match /transactions/{document=**} {
       allow read, write: if signedIn();
     }
+    match /recurring_transactions/{document=**} {
+      allow read, write: if signedIn();
+    }
+    match /categories/{document=**} {
+      allow read, write: if signedIn();
+    }
+    match /quick_notes/{document=**} {
+      allow read, write: if signedIn();
+    }
+    match /customers/{document=**} {
+      allow read, write: if signedIn();
+    }
+    match /appointments/{document=**} {
+      allow read, write: if signedIn();
+    }
+    match /warranties/{document=**} {
+      allow read, write: if signedIn();
+    }
+    match /settings/{document=**} {
+      allow read, write: if signedIn();
+    }
+    match /config/{document=**} {
+      allow read, write: if signedIn();
+    }
+    match /audit_logs/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    // No catch-all authenticated write rule: collections not explicitly
+    // mapped above are denied until audited and intentionally added.
   }
 }
