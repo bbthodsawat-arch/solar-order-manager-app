@@ -30,3 +30,24 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Production runtime smoke test
+        env:
+          NODE_ENV: production
+        run: |
+          npm start > /tmp/som-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+
+          for i in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3000/api/health; then
+              echo
+              echo "Production runtime smoke test passed."
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Production server failed to become healthy."
+          cat /tmp/som-server.log
+          exit 1
