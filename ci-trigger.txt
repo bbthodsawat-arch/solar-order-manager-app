@@ -1,0 +1,2 @@
+CI trigger marker for dependency reconciliation verification.
+This file is intentionally harmless and contains no secrets or deployment configuration.
