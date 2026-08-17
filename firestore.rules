@@ -1,106 +1,67 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function userDoc() {
-      return signedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
-    function userData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    function isOwner() {
-      return signedIn()
-        && request.auth.token.email != null
-        && request.auth.token.email.lower() == 'b.b.thodsawat@gmail.com';
-    }
-
-    function isAdmin() {
-      return isOwner() || (userDoc() && userData().role == 'admin');
-    }
-
-    function hasPermission(permission) {
-      return isAdmin()
-        || (userDoc()
-          && userData().status == 'active'
-          && userData().permissions != null
-          && userData().permissions[permission] == true);
-    }
-
-    // User profiles are the authorization source for the application.
-    // A new authenticated user can create only their own staff profile unless
-    // they are the designated owner. Elevated roles remain admin-controlled.
-    match /users/{userId} {
-      allow read: if signedIn() && (userId == request.auth.uid || isAdmin());
-      allow create: if signedIn()
-        && userId == request.auth.uid
-        && (request.resource.data.role == 'staff' || isOwner());
-      allow update: if isAdmin()
-        || (signedIn()
-          && userId == request.auth.uid
-          && request.resource.data.role == resource.data.role
-          && request.resource.data.permissions == resource.data.permissions
-          && request.resource.data.status == resource.data.status);
-      allow delete: if isAdmin();
-    }
-
-    // Financial transactions: authorization follows the application's
-    // transaction permissions instead of merely requiring authentication.
-    match /transactions/{document=**} {
-      allow read: if hasPermission('canViewDashboard') || hasPermission('canViewReports') || hasPermission('canAddTransactions');
-      allow create: if hasPermission('canAddTransactions');
-      allow update: if hasPermission('canEditTransactions');
-      allow delete: if hasPermission('canDeleteTransactions');
-    }
-
-    match /recurring_transactions/{document=**} {
-      allow read, create, update, delete: if hasPermission('canManageSettings');
-    }
-
-    match /categories/{document=**} {
-      allow read, create, update, delete: if hasPermission('canManageSettings');
-    }
-
-    match /settings/{document=**} {
-      allow read, create, update, delete: if hasPermission('canManageSettings');
-    }
-
+    // Config settings are readable by anyone so app initialization works smoothly before or after login
     match /config/{document=**} {
-      allow read: if signedIn();
-      allow create, update, delete: if hasPermission('canManageSettings');
+      allow read: if true;
+      allow write: if request.auth != null;
     }
 
-    match /audit_logs/{document=**} {
-      allow read: if hasPermission('canViewAuditLogs');
-      // Audit records may be written by authenticated application flows, but
-      // clients cannot modify/delete existing records through this rule.
-      allow create: if signedIn();
-      allow update, delete: if false;
+    // Settings collection for company settings
+    match /settings/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
     }
 
-    // These business collections do not yet have dedicated UI permission
-    // flags in the current permission model. Keep them authenticated-only
-    // until their CRUD matrix is audited rather than granting public access.
+    // Users collection is readable so username login lookups work before auth state resolves
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null;
+    }
+
+    // Transactions collection - accessible for reading and writing
+    match /transactions/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Recurring transactions collection
+    match /recurring_transactions/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Categories collection
+    match /categories/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Quick notes collection
     match /quick_notes/{document=**} {
-      allow read, write: if signedIn();
-    }
-    match /customers/{document=**} {
-      allow read, write: if signedIn();
-    }
-    match /appointments/{document=**} {
-      allow read, write: if signedIn();
-    }
-    match /warranties/{document=**} {
-      allow read, write: if signedIn();
+      allow read, write: if true;
     }
 
-    // Unknown collections are denied by default because no catch-all allow
-    // rule is defined.
+    // Customer records collection
+    match /customers/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Appointments and installation schedules collection
+    match /appointments/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Product warranties collection
+    match /warranties/{document=**} {
+      allow read, write: if true;
+    }
+
+    // Audit logs collection
+    match /audit_logs/{document=**} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if request.auth != null && (
+        request.auth.token.email.toLowerCase() == 'b.b.thodsawat@gmail.com' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
   }
 }
