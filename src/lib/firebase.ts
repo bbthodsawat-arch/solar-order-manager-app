@@ -27,32 +27,41 @@ export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestore
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' });
 
+function isMobileBrowser() {
+  return typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
 /**
- * Start Google authentication from a user gesture.
- * Popup is preferred on every browser because it completes the OAuth flow
- * in the current session and avoids redirect/storage issues on mobile Chrome.
- * Redirect remains a fallback when the browser explicitly blocks popups.
+ * Google authentication strategy:
+ * - Mobile browsers: use Firebase redirect directly. This avoids Android Chrome
+ *   popup lifecycle/storage issues that can look like a silent login failure.
+ * - Desktop: use popup, with redirect fallback for blocked/unsupported popups.
  */
 export async function signInWithGoogle() {
+  if (isMobileBrowser()) {
+    await signInWithRedirect(auth, provider);
+    return null;
+  }
+
   try {
     return await signInWithPopup(auth, provider);
   } catch (error: any) {
-    const code = error?.code || 'unknown';
-    const redirectFallbackCodes = new Set([
-      'auth/popup-blocked',
-      'auth/popup-closed-by-user',
-      'auth/cancelled-popup-request',
-      'auth/operation-not-supported-in-this-environment',
-      'auth/web-storage-unsupported'
+    const code = error?.code || '';
+    const noFallbackCodes = new Set([
+      'auth/unauthorized-domain',
+      'auth/operation-not-allowed',
+      'auth/invalid-api-key',
+      'auth/invalid-app-credential',
+      'auth/app-not-authorized'
     ]);
 
-    if (redirectFallbackCodes.has(code)) {
+    if (!noFallbackCodes.has(code)) {
       await signInWithRedirect(auth, provider);
       return null;
     }
 
     console.error('[Firebase Google Auth]', {
-      code,
+      code: code || 'unknown',
       message: error?.message || String(error),
       hostname: typeof window !== 'undefined' ? window.location.hostname : undefined,
       origin: typeof window !== 'undefined' ? window.location.origin : undefined,
