@@ -1,0 +1,10 @@
+import { getSupabase } from './supabase';
+export const GoogleAuthProvider = class { static credentialFromResult(){return null;} };
+export const browserLocalPersistence = {};
+export const setPersistence = async (_auth:any,_p:any) => undefined;
+export const signInWithPopup = async (_auth:any,_provider:any) => { const c=getSupabase(); if(!c) throw new Error('Supabase is not configured'); return c.auth.signInWithOAuth({provider:'google',options:{redirectTo:window.location.origin}}); };
+export const signInWithRedirect = async (_auth:any,_provider:any) => signInWithPopup(_auth,_provider);
+export const getRedirectResult = async (_auth:any) => ({user:null});
+export const onAuthStateChanged = (_auth:any,callback:(user:any)=>void) => { let active=true; const c=getSupabase(); void c?.auth.getUser().then(({data})=>{if(active) callback(data.user);}); const sub=c?.auth.onAuthStateChange((_e,s)=>{if(active) callback(s?.user||null);}); return ()=>{active=false; sub?.data.subscription.unsubscribe();}; };
+export const signOut = async (_auth:any) => { const c=getSupabase(); if(c) await c.auth.signOut(); };
+export const getAuth = () => ({currentUser:null});
