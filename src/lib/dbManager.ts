@@ -9,9 +9,11 @@ export interface DbHealthStatus {
   supabase: { status: 'unconfigured'; latencyMs: number; message: string };
 }
 export interface SyncStats { transactions: number; customers: number; appointments: number; warranties: number; quickNotes: number; }
+export interface DbSyncError { id: string; source: 'local' | 'firebase' | 'supabase' | 'network'; errorType: string; errorMessage: string; timestamp: string; autoFailoverTriggered: boolean; }
 
 type SubscriberCallback = (state: { preferredProvider: DbProvider; actualProvider: DbProvider; autoFailover: boolean; health: DbHealthStatus }) => void;
 const subscribers = new Set<SubscriberCallback>();
+const ERROR_LOG_KEY = 'solar_db_error_logs';
 let preferredProvider: DbProvider = 'firebase';
 let actualProvider: DbProvider = 'firebase';
 let autoFailover = true;
@@ -22,20 +24,20 @@ let healthStatus: DbHealthStatus = {
 };
 
 const notify = () => subscribers.forEach(cb => cb({ preferredProvider, actualProvider, autoFailover, health: healthStatus }));
+const readErrorLogs = (): DbSyncError[] => {
+  try { return JSON.parse(localStorage.getItem(ERROR_LOG_KEY) || '[]'); } catch { return []; }
+};
+const writeErrorLogs = (logs: DbSyncError[]) => localStorage.setItem(ERROR_LOG_KEY, JSON.stringify(logs.slice(-200)));
 
 export const dbManager = {
   getPreferredProvider: () => preferredProvider,
   getActualProvider: () => actualProvider,
   isAutoFailoverEnabled: () => autoFailover,
   getHealthStatus: () => healthStatus,
-  getLastSyncSuccessTimestamps: () => ({
-    local: localStorage.getItem('solar_last_sync_success_local'),
-    firebase: localStorage.getItem('solar_last_sync_success_firebase'),
-    supabase: null,
-  }),
+  getLastSyncSuccessTimestamps: () => ({ local: localStorage.getItem('solar_last_sync_success_local'), firebase: localStorage.getItem('solar_last_sync_success_firebase'), supabase: null }),
+  getErrorLogs: () => readErrorLogs(),
+  clearErrorLogs: () => { localStorage.removeItem(ERROR_LOG_KEY); notify(); },
   setPreferredProvider(provider: DbProvider) {
-    // Supabase is retained only as a legacy UI value so older components remain type-safe;
-    // selecting it can never activate a Supabase connection.
     preferredProvider = provider === 'local' ? 'local' : 'firebase';
     actualProvider = preferredProvider;
     localStorage.setItem('solar_preferred_database_mode', actualProvider);
@@ -85,6 +87,10 @@ export const dbManager = {
     return { success: true, stats };
   },
   addErrorLog(provider: string, operation: string, message: string, failover: boolean) {
+    const source: DbSyncError['source'] = provider === 'firebase' || provider === 'supabase' || provider === 'local' ? provider : 'network';
+    const entry: DbSyncError = { id: crypto.randomUUID(), source, errorType: operation, errorMessage: message, timestamp: new Date().toISOString(), autoFailoverTriggered: failover };
+    writeErrorLogs([...readErrorLogs(), entry]);
     console.error(`[${provider}] ${operation}: ${message}`, { failover });
+    notify();
   },
 };
