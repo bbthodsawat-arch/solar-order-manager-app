@@ -2,7 +2,7 @@ import { toast } from 'react-hot-toast';
 import { collection, getDocs } from './firestore-compat';
 import { db, isFirebaseConfigured } from './firebase';
 
-export type DbProvider = 'local' | 'firebase';
+export type DbProvider = 'local' | 'firebase' | 'supabase';
 export interface DbHealthStatus {
   local: { status: 'healthy' | 'warning'; message: string };
   firebase: { status: 'healthy' | 'error' | 'offline'; latencyMs: number; message: string };
@@ -18,7 +18,7 @@ let autoFailover = true;
 let healthStatus: DbHealthStatus = {
   local: { status: 'healthy', message: 'LocalStorage พร้อมใช้งานเป็น offline cache' },
   firebase: { status: isFirebaseConfigured() ? 'healthy' : 'error', latencyMs: 0, message: isFirebaseConfigured() ? 'Firebase พร้อมใช้งาน' : 'ยังไม่ได้ตั้งค่า Firebase' },
-  supabase: { status: 'unconfigured', latencyMs: 0, message: 'SOM ใช้ Firebase/Firestore เป็นฐานข้อมูลหลัก' },
+  supabase: { status: 'unconfigured', latencyMs: 0, message: 'Supabase ถูกปิดใช้งาน — SOM ใช้ Firebase/Firestore เป็นฐานข้อมูลหลัก' },
 };
 
 const notify = () => subscribers.forEach(cb => cb({ preferredProvider, actualProvider, autoFailover, health: healthStatus }));
@@ -34,6 +34,8 @@ export const dbManager = {
     supabase: null,
   }),
   setPreferredProvider(provider: DbProvider) {
+    // Supabase is retained only as a legacy UI value so older components remain type-safe;
+    // selecting it can never activate a Supabase connection.
     preferredProvider = provider === 'local' ? 'local' : 'firebase';
     actualProvider = preferredProvider;
     localStorage.setItem('solar_preferred_database_mode', actualProvider);
@@ -64,7 +66,7 @@ export const dbManager = {
         healthStatus.firebase = { status: 'error', latencyMs, message: error instanceof Error ? error.message : String(error) };
       }
     }
-    healthStatus.supabase = { status: 'unconfigured', latencyMs: 0, message: 'SOM ใช้ Firebase/Firestore เป็นฐานข้อมูลหลัก' };
+    healthStatus.supabase = { status: 'unconfigured', latencyMs: 0, message: 'Supabase ถูกปิดใช้งาน — SOM ใช้ Firebase/Firestore เป็นฐานข้อมูลหลัก' };
     this.recalculateActualProvider();
     return healthStatus;
   },
