@@ -31,31 +31,46 @@ const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' });
 
 /**
- * Google sign-in that works reliably on mobile browsers as well as desktop.
- * Mobile uses redirect because popup windows are commonly blocked or detached.
- * Desktop uses popup first and falls back to redirect when the browser blocks it.
+ * Google sign-in.
+ *
+ * Start with popup even on mobile because it gives Firebase an immediate
+ * response/error that can be shown to the user. If the browser blocks popup,
+ * fall back to the Firebase redirect flow.
  */
 export async function signInWithGoogle() {
-  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent);
-
-  if (isMobile) {
-    await signInWithRedirect(auth, provider);
-    return null;
-  }
-
   try {
     return await signInWithPopup(auth, provider);
   } catch (error: any) {
-    const fallbackCodes = new Set([
+    const code = error?.code || 'unknown';
+
+    const redirectFallbackCodes = new Set([
       'auth/popup-blocked',
       'auth/popup-closed-by-user',
       'auth/cancelled-popup-request',
       'auth/operation-not-supported-in-this-environment'
     ]);
 
-    if (fallbackCodes.has(error?.code)) {
+    if (redirectFallbackCodes.has(code)) {
       await signInWithRedirect(auth, provider);
       return null;
+    }
+
+    // Keep the actual Firebase error visible in browser logs and provide a
+    // native fallback message because Login is rendered before the global
+    // authenticated-area Toaster component.
+    console.error('[Firebase Google Auth]', {
+      code,
+      message: error?.message || String(error),
+      hostname: typeof window !== 'undefined' ? window.location.hostname : undefined,
+      authDomain: firebaseConfig.authDomain,
+      projectId: firebaseConfig.projectId,
+    });
+
+    if (typeof window !== 'undefined') {
+      const message = code === 'auth/unauthorized-domain'
+        ? `Firebase ไม่อนุญาตโดเมนนี้: ${window.location.hostname}`
+        : `Google Login ไม่สำเร็จ (${code})`;
+      window.alert(message);
     }
 
     throw error;
