@@ -27,15 +27,13 @@ export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestore
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: 'select_account' });
 
-/** Mobile browsers use Firebase redirect directly; desktop uses popup with redirect fallback. */
+/**
+ * Start Google authentication from a user gesture.
+ * Popup is preferred on every browser because it completes the OAuth flow
+ * in the current session and avoids redirect/storage issues on mobile Chrome.
+ * Redirect remains a fallback when the browser explicitly blocks popups.
+ */
 export async function signInWithGoogle() {
-  const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-
-  if (isMobile) {
-    await signInWithRedirect(auth, provider);
-    return null;
-  }
-
   try {
     return await signInWithPopup(auth, provider);
   } catch (error: any) {
@@ -44,7 +42,8 @@ export async function signInWithGoogle() {
       'auth/popup-blocked',
       'auth/popup-closed-by-user',
       'auth/cancelled-popup-request',
-      'auth/operation-not-supported-in-this-environment'
+      'auth/operation-not-supported-in-this-environment',
+      'auth/web-storage-unsupported'
     ]);
 
     if (redirectFallbackCodes.has(code)) {
@@ -56,6 +55,7 @@ export async function signInWithGoogle() {
       code,
       message: error?.message || String(error),
       hostname: typeof window !== 'undefined' ? window.location.hostname : undefined,
+      origin: typeof window !== 'undefined' ? window.location.origin : undefined,
       authDomain: firebaseConfig.authDomain,
       projectId: firebaseConfig.projectId,
     });
