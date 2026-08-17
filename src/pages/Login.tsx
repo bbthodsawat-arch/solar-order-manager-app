@@ -3,6 +3,7 @@ import { getRedirectResult } from 'firebase/auth';
 import { ArrowRight, ShieldCheck, Sparkles, AlertCircle } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
 import { auth, signInWithGoogle } from '../lib/firebase';
+import { SOM_AUTH_BUILD } from '../auth-build';
 
 function firebaseAuthMessage(error: any) {
   const code = error?.code || '';
@@ -58,7 +59,7 @@ export default function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-5 relative overflow-hidden">
+    <main data-auth-build={SOM_AUTH_BUILD} className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-5 relative overflow-hidden">
       <Toaster position="top-center" />
       <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-amber-400/15 blur-3xl" />
       <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-blue-500/10 blur-3xl" />
