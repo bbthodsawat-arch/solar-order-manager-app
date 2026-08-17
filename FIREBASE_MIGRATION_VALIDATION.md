@@ -1,3 +1,3 @@
-# Final validation
+# Firebase migration validation
 
-Production validation is executed by `.github/workflows/firebase-ci.yml`.
+Compatibility fixes applied; CI validation is required before deployment.
