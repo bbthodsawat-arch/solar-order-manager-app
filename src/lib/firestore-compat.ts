@@ -16,6 +16,7 @@ import {
   writeBatch as firestoreWriteBatch,
   deleteField as firestoreDeleteField,
   serverTimestamp as firestoreServerTimestamp,
+  Timestamp as FirestoreTimestamp,
   type QueryConstraint,
   type DocumentData,
 } from 'firebase/firestore';
@@ -37,9 +38,7 @@ export const deleteField = () => firestoreDeleteField();
 
 const toFirestoreRef = (r: Ref) => {
   const database = requireDb();
-  return r.kind === 'doc'
-    ? firestoreDoc(database, r.collection, r.id!)
-    : firestoreCollection(database, r.collection);
+  return r.kind === 'doc' ? firestoreDoc(database, r.collection, r.id!) : firestoreCollection(database, r.collection);
 };
 
 const toSnapshotDoc = (snapshot: any) => ({
@@ -49,11 +48,16 @@ const toSnapshotDoc = (snapshot: any) => ({
   ref: snapshot.ref,
 });
 
+const toCompatQuerySnapshot = (snapshot: any) => ({
+  empty: snapshot.empty,
+  size: snapshot.size,
+  docs: snapshot.docs.map(toSnapshotDoc),
+});
+
 export const getDocs = async (r: Ref) => {
   const ref = toFirestoreRef(r);
   const snapshot = await firestoreGetDocs(r.constraints?.length ? firestoreQuery(ref as any, ...r.constraints) : ref as any);
-  const docs = snapshot.docs.map(toSnapshotDoc);
-  return { empty: snapshot.empty, size: snapshot.size, docs };
+  return toCompatQuerySnapshot(snapshot);
 };
 
 export const getDocsFromServer = getDocs;
@@ -99,7 +103,11 @@ export const onSnapshot = (r: Ref, next: (snapshot: any) => void, error?: (e: un
   try {
     const ref = toFirestoreRef(r);
     const target = r.constraints?.length ? firestoreQuery(ref as any, ...r.constraints) : ref;
-    return firestoreOnSnapshot(target as any, next, error);
+    return firestoreOnSnapshot(
+      target as any,
+      (snapshot: any) => next(r.kind === 'doc' ? toSnapshotDoc(snapshot) : toCompatQuerySnapshot(snapshot)),
+      error,
+    );
   } catch (e) {
     error?.(e);
     return () => undefined;
@@ -107,6 +115,4 @@ export const onSnapshot = (r: Ref, next: (snapshot: any) => void, error?: (e: un
 };
 
 export const serverTimestamp = () => firestoreServerTimestamp();
-export const Timestamp = {
-  now: () => firestoreServerTimestamp(),
-};
+export const Timestamp = FirestoreTimestamp;
