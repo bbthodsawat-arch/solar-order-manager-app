@@ -1,40 +1,56 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { LogIn, ShieldCheck, Sparkles, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Sparkles, ArrowRight } from 'lucide-react';
 import { getRedirectResult } from 'firebase/auth';
-import { auth, signInWithGoogleRedirect } from '../lib/firebase';
+import { auth, signInWithGoogle, signInWithGoogleRedirect } from '../lib/firebase';
+
+function authMessage(error: any) {
+  const code = error?.code || '';
+  const messages: Record<string, string> = {
+    'auth/unauthorized-domain': 'โดเมนนี้ยังไม่ได้รับอนุญาตใน Firebase Authentication',
+    'auth/operation-not-allowed': 'ยังไม่ได้เปิด Google Sign-In ใน Firebase Authentication',
+    'auth/popup-blocked': 'เบราว์เซอร์บล็อกหน้าต่าง Google — กำลังเปลี่ยนไปใช้ Redirect',
+    'auth/popup-closed-by-user': 'หน้าต่าง Google ถูกปิดก่อนเข้าสู่ระบบ',
+    'auth/cancelled-popup-request': 'คำขอ Google Login ถูกยกเลิก',
+    'auth/network-request-failed': 'เชื่อมต่อ Firebase ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต',
+  };
+  return messages[code] || `Google Login ไม่สำเร็จ${code ? ` (${code})` : ''}`;
+}
 
 export default function Login() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     getRedirectResult(auth)
-      .then(result => { if (result?.user) toast.success('เข้าสู่ระบบด้วย Google สำเร็จ'); })
+      .then(result => {
+        if (result?.user) toast.success(`เข้าสู่ระบบสำเร็จ: ${result.user.email || 'Google account'}`);
+      })
       .catch(error => {
         console.error('Google redirect authentication error', error);
-        const code = error?.code || '';
-        const messages: Record<string,string> = {
-          'auth/unauthorized-domain': 'โดเมน Production ยังไม่ได้รับอนุญาตใน Firebase Authentication',
-          'auth/operation-not-allowed': 'ยังไม่ได้เปิด Google ใน Firebase Authentication',
-          'auth/account-exists-with-different-credential': 'อีเมลนี้มีบัญชีอยู่แล้วด้วยวิธีเข้าสู่ระบบอื่น',
-          'auth/popup-blocked': 'เบราว์เซอร์บล็อก Google Login',
-        };
-        toast.error(messages[code] || `Google Login ไม่สำเร็จ${code ? ` (${code})` : ''}`);
+        toast.error(authMessage(error));
       });
   }, []);
 
   const loginWithGoogle = async () => {
+    if (busy) return;
     setBusy(true);
     try {
-      await signInWithGoogleRedirect();
+      const result = await signInWithGoogle();
+      toast.success(`เข้าสู่ระบบสำเร็จ: ${result.user.email || 'Google account'}`);
     } catch (error: any) {
-      console.error('Google sign-in redirect error', error);
-      const code = error?.code || '';
-      toast.error(code === 'auth/operation-not-allowed'
-        ? 'ยังไม่ได้เปิด Google ใน Firebase Authentication'
-        : code === 'auth/unauthorized-domain'
-          ? 'โดเมน Production ยังไม่ได้รับอนุญาตใน Firebase Authentication'
-          : `Google Login ไม่สำเร็จ${code ? ` (${code})` : ''}`);
+      console.error('Google popup authentication error', error);
+      if (error?.code === 'auth/popup-blocked') {
+        try {
+          toast('กำลังเปิด Google Login แบบ Redirect...', { icon: '↗️' });
+          await signInWithGoogleRedirect();
+          return;
+        } catch (redirectError: any) {
+          console.error('Google redirect fallback error', redirectError);
+          toast.error(authMessage(redirectError));
+        }
+      } else {
+        toast.error(authMessage(error));
+      }
       setBusy(false);
     }
   };
