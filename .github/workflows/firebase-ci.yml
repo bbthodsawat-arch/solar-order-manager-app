@@ -17,13 +17,15 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: Install dependencies
         run: npm install
       - name: Typecheck
         run: npm run lint
       - name: Production build
-        run: npm run build
+        id: build
+        continue-on-error: true
+        run: npm run build > build.log 2>&1; echo "exit_code=$?" >> "$GITHUB_OUTPUT"; cat build.log; exit $(grep -o 'exit_code=[0-9]*' "$GITHUB_OUTPUT" | cut -d= -f2)
         env:
           VITE_FIREBASE_API_KEY: ci-placeholder
           VITE_FIREBASE_AUTH_DOMAIN: ci-placeholder.firebaseapp.com
@@ -31,3 +33,12 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ci-placeholder.appspot.com
           VITE_FIREBASE_MESSAGING_SENDER_ID: ci-placeholder
           VITE_FIREBASE_APP_ID: ci-placeholder
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebase-build-diagnostics
+          path: build.log
+      - name: Fail if build failed
+        if: steps.build.outputs.exit_code != '0'
+        run: exit 1
