@@ -1,3 +1,1 @@
-export const initializeApp = (config:any) => config || {};
-export const getApps = () => [];
-export const getApp = () => ({});
+export { initializeApp, getApps, getApp } from 'firebase/app';
