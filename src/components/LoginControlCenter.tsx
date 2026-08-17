@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Check, Eye, EyeOff, Monitor, Moon, Palette, Sun, Sparkles, WandSparkles } from 'lucide-react';
 import { motion } from 'motion/react';
-import { getSupabase } from '../lib/supabase';
+import { auth } from '../lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from '../lib/firestore-compat';
 
 type LoginSettings = { theme_mode:'light'|'dark'|'system'; layout_style:'split-left'|'split-right'|'centered'; animation:'ambient'|'minimal'|'none'; show_developer_credit:boolean; developer_credit_name:string; show_developer_credit_on_home:boolean; show_developer_credit_on_login:boolean; welcome_title:string; welcome_subtitle:string; };
 const defaults:LoginSettings={theme_mode:'dark',layout_style:'split-left',animation:'ambient',show_developer_credit:true,developer_credit_name:'BOY THODSAWAT',show_developer_credit_on_home:true,show_developer_credit_on_login:true,welcome_title:'ศูนย์ควบคุมระบบ',welcome_subtitle:'จัดการงานขาย ระบบโซล่า และการเงินของคุณได้ในที่เดียว'};
+
 export default function LoginControlCenter(){
  const [s,setS]=useState<LoginSettings>(defaults); const [saving,setSaving]=useState(false); const [saved,setSaved]=useState(false);
- useEffect(()=>{void(async()=>{const c=getSupabase();if(!c)return;const {data}=await c.from('login_settings').select('*').eq('id','default').maybeSingle();if(data)setS({...defaults,...data});})();},[]);
+ useEffect(()=>{void(async()=>{try{const snapshot=await getDoc(doc(null,'login_settings','default'));if(snapshot.exists())setS({...defaults,...snapshot.data()});}catch(error){console.warn('[Firebase login settings]',error);}})();},[]);
  const patch=(p:Partial<LoginSettings>)=>{setSaved(false);setS(v=>({...v,...p}));};
- const save=async()=>{const c=getSupabase();if(!c)return;setSaving(true);const {data:{user}}=await c.auth.getUser();if(!user){setSaving(false);return;}const {error}=await c.from('login_settings').upsert({...s,id:'default',updated_by:user.id,updated_at:new Date().toISOString()},{onConflict:'id'});setSaved(!error);setSaving(false);};
+ const save=async()=>{if(!auth?.currentUser)return;setSaving(true);try{await setDoc(doc(null,'login_settings','default'),{...s,updated_by:auth.currentUser.uid,updated_at:serverTimestamp()},{merge:true});setSaved(true);}catch(error){console.error('[Firebase login settings save]',error);setSaved(false);}finally{setSaving(false);}};
  const themes:[LoginSettings['theme_mode'],string,any][]=[['light','สว่าง',Sun],['dark','มืด',Moon],['system','ตามระบบ',Monitor]];
  return <div className="space-y-6"><div className="rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm"><div className="p-6 sm:p-8 bg-gradient-to-br from-indigo-600 via-violet-600 to-slate-950 text-white"><div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-[10px] font-black uppercase"><WandSparkles size={14}/> Login Control Center</div><h2 className="mt-4 text-2xl sm:text-3xl font-black">ออกแบบหน้าเข้าสู่ระบบ</h2><p className="mt-2 text-sm text-white/70">จัดการธีม เลย์เอาต์ Animation และเครดิตผู้พัฒนา</p></div><div className="p-5 sm:p-8 space-y-8">
  <section><h3 className="text-sm font-black flex items-center gap-2 text-slate-900 dark:text-white"><Palette size={17} className="text-indigo-500"/> โหมดธีม</h3><div className="grid grid-cols-3 gap-2 mt-3">{themes.map(([id,label,Icon])=><button key={id} onClick={()=>patch({theme_mode:id})} className={`p-4 rounded-2xl border text-left ${s.theme_mode===id?'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40':'border-slate-200 dark:border-slate-800'}`}><Icon size={18}/><p className="mt-2 text-xs font-black">{label}</p>{s.theme_mode===id&&<Check size={14} className="mt-2 text-indigo-500"/>}</button>)}</div></section>
