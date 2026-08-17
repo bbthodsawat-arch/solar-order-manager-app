@@ -1,60 +1,24 @@
-import React, { useEffect, useState } from 'react';
-import { getRedirectResult } from 'firebase/auth';
+import React, { useState } from 'react';
 import { ArrowRight, ShieldCheck, Sparkles, AlertCircle } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
-import { auth, signInWithGoogle } from '../lib/firebase';
+import { signInWithGoogle } from '../lib/supabase';
 import { SOM_AUTH_BUILD } from '../auth-build';
-
-function firebaseAuthMessage(error: any) {
-  const code = error?.code || '';
-  const messages: Record<string, string> = {
-    'auth/unauthorized-domain': 'โดเมนนี้ยังไม่ได้รับอนุญาตใน Firebase Authentication',
-    'auth/operation-not-allowed': 'Google Sign-In ยังไม่ได้เปิดใน Firebase Authentication',
-    'auth/network-request-failed': 'เชื่อมต่อ Firebase ไม่สำเร็จ กรุณาตรวจสอบอินเทอร์เน็ต',
-    'auth/popup-closed-by-user': 'หน้าต่าง Google ถูกปิดก่อนเข้าสู่ระบบ',
-    'auth/popup-blocked': 'เบราว์เซอร์บล็อก Google Login',
-    'auth/cancelled-popup-request': 'คำขอ Google Login ถูกยกเลิก',
-  };
-  return messages[code] || `Google Login ไม่สำเร็จ${code ? ` (${code})` : ''}`;
-}
 
 export default function Login() {
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  useEffect(() => {
-    let active = true;
-    getRedirectResult(auth)
-      .then(result => {
-        if (!active) return;
-        if (result?.user) {
-          setBusy(true);
-          toast.success('ยืนยัน Google สำเร็จ กำลังเข้าสู่ศูนย์ควบคุม...');
-        }
-      })
-      .catch(error => {
-        if (!active) return;
-        console.error('[Firebase redirect result]', error);
-        const message = firebaseAuthMessage(error);
-        setErrorMessage(message);
-        toast.error(message);
-      });
-    return () => { active = false; };
-  }, []);
-
   const handleGoogleLogin = async () => {
     if (busy) return;
-    setBusy(true);
-    setErrorMessage('');
+    setBusy(true); setErrorMessage('');
     try {
-      const result = await signInWithGoogle();
-      if (result?.user) toast.success('เข้าสู่ระบบสำเร็จ กำลังเข้าสู่ศูนย์ควบคุม...');
+      const { error } = await signInWithGoogle();
+      if (error) throw error;
+      toast.success('กำลังเชื่อมต่อ Google และเข้าสู่ระบบ...');
     } catch (error: any) {
-      console.error('[Firebase Google Login]', error);
-      const message = firebaseAuthMessage(error);
-      setErrorMessage(message);
-      toast.error(message);
-      setBusy(false);
+      console.error('[Supabase Google Login]', error);
+      const message = error?.message || 'Google Login ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
+      setErrorMessage(message); toast.error(message); setBusy(false);
     }
   };
 
@@ -75,8 +39,8 @@ export default function Login() {
             {busy ? <><span className="w-5 h-5 rounded-full border-2 border-slate-300 border-t-slate-950 animate-spin" /><span>กำลังเชื่อมต่อ Google...</span></> : <><span className="text-xl font-black">G</span><span>เข้าสู่ระบบด้วย Google</span><ArrowRight size={18} /></>}
           </button>
           {errorMessage && <div className="mt-4 rounded-2xl border border-rose-400/30 bg-rose-500/10 p-4 text-sm text-rose-200 flex gap-3"><AlertCircle size={18} className="shrink-0 mt-0.5" /><div><p className="font-bold">เข้าสู่ระบบไม่สำเร็จ</p><p className="mt-1 text-xs leading-relaxed">{errorMessage}</p></div></div>}
-          <div className="mt-6 rounded-2xl bg-white/[0.04] border border-white/5 p-4 text-center text-xs text-slate-400">การเข้าสู่ระบบครั้งแรกจะสร้างบัญชี Firebase ให้โดยอัตโนมัติ ไม่ต้องตั้งรหัสผ่าน</div>
-          <div className="mt-6 flex items-center justify-center gap-2 text-[10px] text-slate-500"><ShieldCheck size={14} className="text-emerald-400" /> Firebase Authentication • Firestore</div>
+          <div className="mt-6 rounded-2xl bg-white/[0.04] border border-white/5 p-4 text-center text-xs text-slate-400">การเข้าสู่ระบบครั้งแรกจะสร้างโปรไฟล์ผู้ใช้ใน Supabase โดยอัตโนมัติ</div>
+          <div className="mt-6 flex items-center justify-center gap-2 text-[10px] text-slate-500"><ShieldCheck size={14} className="text-emerald-400" /> Supabase Authentication • PostgreSQL • RLS</div>
         </div>
       </section>
     </main>
