@@ -1,0 +1,10 @@
+project_id = "pvicuqkichylokbywxvo"
+
+[api]
+enabled = true
+
+[db]
+major_version = 17
+
+[studio]
+enabled = true
