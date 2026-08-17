@@ -1,12 +1,13 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { 
-  getAuth, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  signInWithEmailAndPassword, 
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
-  signOut as firebaseSignOut 
+  signOut as firebaseSignOut
 } from 'firebase/auth';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -15,7 +16,6 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 
-// Configure Firestore with experimental force long polling and persistent offline local cache to prevent network warnings
 const firestoreOptions = {
   experimentalForceLongPolling: true,
   localCache: persistentLocalCache({
@@ -28,8 +28,40 @@ export const db = firebaseConfig.firestoreDatabaseId && firebaseConfig.firestore
   : initializeFirestore(app, firestoreOptions);
 
 const provider = new GoogleAuthProvider();
+provider.setCustomParameters({ prompt: 'select_account' });
 
-export const signInWithGoogle = () => signInWithPopup(auth, provider);
+/**
+ * Google sign-in that works reliably on mobile browsers as well as desktop.
+ * Mobile uses redirect because popup windows are commonly blocked or detached.
+ * Desktop uses popup first and falls back to redirect when the browser blocks it.
+ */
+export async function signInWithGoogle() {
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent);
+
+  if (isMobile) {
+    await signInWithRedirect(auth, provider);
+    return null;
+  }
+
+  try {
+    return await signInWithPopup(auth, provider);
+  } catch (error: any) {
+    const fallbackCodes = new Set([
+      'auth/popup-blocked',
+      'auth/popup-closed-by-user',
+      'auth/cancelled-popup-request',
+      'auth/operation-not-supported-in-this-environment'
+    ]);
+
+    if (fallbackCodes.has(error?.code)) {
+      await signInWithRedirect(auth, provider);
+      return null;
+    }
+
+    throw error;
+  }
+}
+
 export const signInWithPassword = (email: string, pass: string) => signInWithEmailAndPassword(auth, email, pass);
 export const sendUserPasswordResetEmail = (email: string) => sendPasswordResetEmail(auth, email);
 
@@ -94,5 +126,3 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   return errInfo;
 }
-
-
