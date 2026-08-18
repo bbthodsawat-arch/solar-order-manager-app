@@ -2,15 +2,30 @@ import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, signOut as firebaseSignOut, type User } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+// Firebase Web configuration is intentionally public client configuration.
+// Environment variables remain the preferred override for deployments, while the
+// known production Firebase project is used as a safe fallback so a missing Vercel
+// VITE_* environment configuration cannot disable the production login screen.
+const productionFirebaseConfig = {
+  apiKey: 'AIzaSyCug9CdKSMg3ki-wufXLv3oyThImjyc9fg',
+  authDomain: 'gen-lang-client-0307844434.firebaseapp.com',
+  projectId: 'gen-lang-client-0307844434',
+  storageBucket: 'gen-lang-client-0307844434.firebasestorage.app',
+  messagingSenderId: '774155423443',
+  appId: '1:774155423443:web:7359c69b2e16b7ebe14e26',
+  measurementId: 'G-58Y2CSCG48',
 };
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || productionFirebaseConfig.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || productionFirebaseConfig.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || productionFirebaseConfig.projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || productionFirebaseConfig.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || productionFirebaseConfig.messagingSenderId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || productionFirebaseConfig.appId,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || productionFirebaseConfig.measurementId,
+};
+
 const isConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId);
 export const firebaseApp: FirebaseApp | null = isConfigured ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null;
 export const auth = firebaseApp ? getAuth(firebaseApp) : null;
