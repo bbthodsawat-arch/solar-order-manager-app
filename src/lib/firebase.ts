@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
-import { initializeAuth, browserLocalPersistence, browserPopupRedirectResolver, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, signOut as firebaseSignOut, type User } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, signOut as firebaseSignOut, type User } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // Firebase Web configuration is public client configuration. Environment variables
@@ -28,10 +28,12 @@ const firebaseConfig = {
 const isConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId);
 export const firebaseApp: FirebaseApp | null = isConfigured ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null;
 
-export const auth = firebaseApp ? initializeAuth(firebaseApp, {
-  persistence: browserLocalPersistence,
-  popupRedirectResolver: browserPopupRedirectResolver,
-}) : null;
+// Keep Firebase Auth initialization synchronous and minimal during application boot.
+// initializeAuth() can touch browser persistence/IndexedDB during module evaluation;
+// on mobile browsers that can stall the entire React bootstrap before the loading
+// timeout has a chance to render. getAuth() uses Firebase's safe default initialization
+// and lets the app mount immediately.
+export const auth = firebaseApp ? getAuth(firebaseApp) : null;
 export const db = firebaseApp ? getFirestore(firebaseApp) : null;
 export function isFirebaseConfigured(): boolean { return Boolean(firebaseApp && auth && db); }
 
@@ -39,11 +41,6 @@ export async function signInWithGoogle() {
   if (!auth) return { user: null, error: new Error('Firebase is not configured') };
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
-
-  // Use popup for both desktop and mobile. Firebase's redirect flow can lose its
-  // pending OAuth state in storage-partitioned mobile browsers / custom tabs,
-  // producing "missing initial state" on accounts.google.com/firebaseapp.com.
-  // Popup keeps the initiating page and OAuth state in the same browser context.
   try {
     const result = await signInWithPopup(auth, provider);
     return { user: result.user, error: null };
