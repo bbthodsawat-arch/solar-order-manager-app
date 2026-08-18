@@ -20,24 +20,19 @@ export function useAuth() {
 
     let mounted = true;
 
-    const loadProfile = async (currentUser: User | null) => {
-      if (!mounted) return;
-      setUser(currentUser);
-      if (!currentUser) {
-        setAppUser(null);
-        setLoading(false);
-        return;
-      }
-
+    const loadProfileInBackground = async (currentUser: User) => {
       const isOwner = currentUser.email?.toLowerCase() === OWNER_EMAIL;
       const now = new Date().toISOString();
+      const profileRef = doc(null, 'users', currentUser.uid);
 
       try {
-        const profileRef = doc(null, 'users', currentUser.uid);
         const snapshot = await getDoc(profileRef);
         const existing = snapshot.exists() ? snapshot.data() : undefined;
         const role: UserRole = isOwner ? 'admin' : ((existing?.role as UserRole) || 'staff');
-        const permissions = isOwner ? DEFAULT_ROLE_PERMISSIONS.admin : (existing?.permissions || DEFAULT_ROLE_PERMISSIONS[role]);
+        const permissions = isOwner
+          ? DEFAULT_ROLE_PERMISSIONS.admin
+          : (existing?.permissions || DEFAULT_ROLE_PERMISSIONS[role]);
+
         const profile: AppUser = {
           uid: currentUser.uid,
           email: currentUser.email ?? null,
@@ -50,17 +45,22 @@ export function useAuth() {
           lastLoginAt: now,
         };
 
-        await setDoc(profileRef, {
+        if (!mounted) return;
+        setAppUser(profile);
+
+        // Keep the profile synchronized, but never block the first paint on this write.
+        void setDoc(profileRef, {
           ...profile,
           updatedAt: serverTimestamp(),
           createdAt: existing?.createdAt || serverTimestamp(),
           lastLoginAt: serverTimestamp(),
-        }, { merge: true });
-
-        if (mounted) setAppUser(profile);
+        }, { merge: true }).catch((error) => {
+          console.warn('[Firebase profile sync]', error);
+        });
       } catch (error) {
         console.warn('[Firebase profile]', error);
-        if (mounted) setAppUser({
+        if (!mounted) return;
+        setAppUser({
           uid: currentUser.uid,
           email: currentUser.email ?? null,
           displayName: currentUser.displayName ?? null,
@@ -71,13 +71,37 @@ export function useAuth() {
           createdAt: now,
           lastLoginAt: now,
         });
-      } finally {
-        if (mounted) setLoading(false);
       }
     };
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      void loadProfile(currentUser);
+      if (!mounted) return;
+
+      setUser(currentUser);
+
+      if (!currentUser) {
+        setAppUser(null);
+        setLoading(false);
+        return;
+      }
+
+      // Firebase Auth is the critical path. Render immediately and hydrate the
+      // Firestore profile in the background instead of blocking the first screen.
+      const isOwner = currentUser.email?.toLowerCase() === OWNER_EMAIL;
+      const now = new Date().toISOString();
+      setAppUser({
+        uid: currentUser.uid,
+        email: currentUser.email ?? null,
+        displayName: currentUser.displayName ?? null,
+        photoURL: currentUser.photoURL ?? null,
+        role: isOwner ? 'admin' : 'staff',
+        permissions: DEFAULT_ROLE_PERMISSIONS[isOwner ? 'admin' : 'staff'],
+        status: 'active',
+        createdAt: now,
+        lastLoginAt: now,
+      });
+      setLoading(false);
+      void loadProfileInBackground(currentUser);
     });
 
     return () => {
