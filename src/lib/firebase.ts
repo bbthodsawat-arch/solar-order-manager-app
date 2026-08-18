@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, signOut as firebaseSignOut, type User } from 'firebase/auth';
+import { initializeAuth, browserLocalPersistence, browserPopupRedirectResolver, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, signOut as firebaseSignOut, type User } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // Firebase Web configuration is intentionally public client configuration.
@@ -28,14 +28,27 @@ const firebaseConfig = {
 
 const isConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId);
 export const firebaseApp: FirebaseApp | null = isConfigured ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null;
-export const auth = firebaseApp ? getAuth(firebaseApp) : null;
+
+// Use localStorage-only Auth persistence. This avoids the browser IndexedDB
+// persistence path that can produce "database connection is closing" errors on
+// mobile browsers when a tab is backgrounded/hidden during Google sign-in.
+export const auth = firebaseApp ? initializeAuth(firebaseApp, {
+  persistence: browserLocalPersistence,
+  popupRedirectResolver: browserPopupRedirectResolver,
+}) : null;
 export const db = firebaseApp ? getFirestore(firebaseApp) : null;
 export function isFirebaseConfigured(): boolean { return Boolean(firebaseApp && auth && db); }
 
 export async function signInWithGoogle() {
   if (!auth) return { user: null, error: new Error('Firebase is not configured') };
-  try { const provider = new GoogleAuthProvider(); provider.setCustomParameters({ prompt: 'select_account' }); const result = await signInWithPopup(auth, provider); return { user: result.user, error: null }; }
-  catch (error) { return { user: null, error }; }
+  try {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const result = await signInWithPopup(auth, provider);
+    return { user: result.user, error: null };
+  } catch (error) {
+    return { user: null, error };
+  }
 }
 export async function signInWithPassword(email: string, pass: string) {
   if (!auth) return { user: null, error: new Error('Firebase is not configured') };
