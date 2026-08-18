@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { User } from '@supabase/supabase-js';
-import { getSupabase } from '../lib/supabase';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { auth } from '../lib/firebase';
 import { AppUser, UserRole } from '../types';
 import { DEFAULT_ROLE_PERMISSIONS } from '../utils/permissions';
+import { doc, getDoc, setDoc, serverTimestamp } from '../lib/firestore-compat';
 
 const OWNER_EMAIL = 'b.b.thodsawat@gmail.com';
 
@@ -12,70 +13,77 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     let mounted = true;
-    const client = getSupabase();
-    if (!client) { setLoading(false); return; }
 
     const loadProfile = async (currentUser: User | null) => {
       if (!mounted) return;
       setUser(currentUser);
-      if (!currentUser) { setAppUser(null); setLoading(false); return; }
+      if (!currentUser) {
+        setAppUser(null);
+        setLoading(false);
+        return;
+      }
 
       const isOwner = currentUser.email?.toLowerCase() === OWNER_EMAIL;
+      const now = new Date().toISOString();
+
       try {
-        const { data } = await client.from('users').select('*').eq('uid', currentUser.id).maybeSingle();
-        const role: UserRole = isOwner ? 'admin' : ((data?.role as UserRole) || 'staff');
-        const permissions = isOwner ? DEFAULT_ROLE_PERMISSIONS.admin : (data?.permissions || DEFAULT_ROLE_PERMISSIONS[role]);
-        const now = new Date().toISOString();
+        const profileRef = doc(null, 'users', currentUser.uid);
+        const snapshot = await getDoc(profileRef);
+        const existing = snapshot.exists() ? snapshot.data() : undefined;
+        const role: UserRole = isOwner ? 'admin' : ((existing?.role as UserRole) || 'staff');
+        const permissions = isOwner ? DEFAULT_ROLE_PERMISSIONS.admin : (existing?.permissions || DEFAULT_ROLE_PERMISSIONS[role]);
         const profile: AppUser = {
-          uid: currentUser.id,
+          uid: currentUser.uid,
           email: currentUser.email ?? null,
-          displayName: currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || null,
-          photoURL: currentUser.user_metadata?.avatar_url || currentUser.user_metadata?.picture || null,
+          displayName: currentUser.displayName ?? null,
+          photoURL: currentUser.photoURL ?? null,
           role,
           permissions,
-          status: isOwner ? 'active' : (data?.status || 'active'),
-          createdAt: data?.created_at || now,
+          status: isOwner ? 'active' : (existing?.status || 'active'),
+          createdAt: existing?.createdAt || now,
           lastLoginAt: now,
         };
 
-        const { error } = await client.from('users').upsert({
-          uid: profile.uid,
-          email: profile.email,
-          display_name: profile.displayName,
-          photo_url: profile.photoURL,
-          role: profile.role,
-          permissions: profile.permissions,
-          status: profile.status,
-          created_at: data?.created_at || now,
-          last_login_at: now,
-        }, { onConflict: 'uid' });
-        if (error) console.warn('[Supabase profile upsert]', error.message);
+        await setDoc(profileRef, {
+          ...profile,
+          updatedAt: serverTimestamp(),
+          createdAt: existing?.createdAt || serverTimestamp(),
+          lastLoginAt: serverTimestamp(),
+        }, { merge: true });
+
         if (mounted) setAppUser(profile);
       } catch (error) {
-        console.warn('[Supabase profile]', error);
+        console.warn('[Firebase profile]', error);
         if (mounted) setAppUser({
-          uid: currentUser.id,
+          uid: currentUser.uid,
           email: currentUser.email ?? null,
-          displayName: currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || null,
-          photoURL: currentUser.user_metadata?.avatar_url || currentUser.user_metadata?.picture || null,
+          displayName: currentUser.displayName ?? null,
+          photoURL: currentUser.photoURL ?? null,
           role: isOwner ? 'admin' : 'staff',
           permissions: DEFAULT_ROLE_PERMISSIONS[isOwner ? 'admin' : 'staff'],
           status: 'active',
-          createdAt: new Date().toISOString(),
-          lastLoginAt: new Date().toISOString(),
+          createdAt: now,
+          lastLoginAt: now,
         });
       } finally {
         if (mounted) setLoading(false);
       }
     };
 
-    client.auth.getSession().then(({ data }) => loadProfile(data.session?.user ?? null));
-    const { data: subscription } = client.auth.onAuthStateChange((_event, session) => {
-      void loadProfile(session?.user ?? null);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      void loadProfile(currentUser);
     });
 
-    return () => { mounted = false; subscription.subscription.unsubscribe(); };
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
   }, []);
 
   return { user, appUser, loading };

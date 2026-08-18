@@ -8,9 +8,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      'firebase/firestore': path.resolve(__dirname, './src/lib/firestore-compat.ts'),
-      'firebase/auth': path.resolve(__dirname, './src/lib/firebase-auth-compat.ts'),
-      'firebase/app': path.resolve(__dirname, './src/lib/firebase-app-compat.ts'),
     },
     dedupe: ['react', 'react-dom'],
   },

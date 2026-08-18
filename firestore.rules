@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return signedIn() && request.auth.token.email == 'b.b.thodsawat@gmail.com';
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // User profiles: users can read/update their own safe profile fields;
+    // the owner can administer all profiles.
+    match /users/{userId} {
+      allow read: if isSelf(userId) || isOwner();
+      allow create: if isSelf(userId) || isOwner();
+      allow update: if isOwner() || (
+        isSelf(userId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'photoURL', 'lastLoginAt', 'updatedAt'
+        ])
+      );
+      allow delete: if isOwner();
+    }
+
+    // Application/business collections. SOM currently does not implement a
+    // separate role/permission system, so authenticated users may operate on
+    // business records. Unknown collections remain denied by default.
+    match /transactions/{documentId} {
+      allow read, write: if signedIn();
+    }
+    match /customers/{documentId} {
+      allow read, write: if signedIn();
+    }
+    match /appointments/{documentId} {
+      allow read, write: if signedIn();
+    }
+    match /warranties/{documentId} {
+      allow read, write: if signedIn();
+    }
+    match /quick_notes/{documentId} {
+      allow read, write: if signedIn();
+    }
+    match /category_budgets/{documentId} {
+      allow read, write: if signedIn();
+    }
+    match /recurring_transactions/{documentId} {
+      allow read, write: if signedIn();
+    }
+
+    // Login configuration is readable by authenticated users but only the
+    // account owner can change it.
+    match /login_settings/{documentId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isOwner();
+    }
+
+    // Database diagnostics use this document as a connectivity check.
+    match /__healthcheck/{documentId} {
+      allow read: if signedIn();
+      allow write: if isOwner();
+    }
+
+    // Audit records must not be mutable by ordinary users after creation.
+    match /audit_logs/{documentId} {
+      allow read: if isOwner();
+      allow create: if signedIn();
+      allow update, delete: if isOwner();
+    }
+
+    // No catch-all allow rule: any collection not explicitly declared above
+    // is denied by default.
+  }
+}
