@@ -6,6 +6,7 @@ import { DEFAULT_ROLE_PERMISSIONS } from '../utils/permissions';
 import { doc, getDoc, setDoc, serverTimestamp } from '../lib/firestore-compat';
 
 const OWNER_EMAIL = 'b.b.thodsawat@gmail.com';
+const AUTH_BOOT_TIMEOUT_MS = 5000;
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -19,6 +20,24 @@ export function useAuth() {
     }
 
     let mounted = true;
+    let settled = false;
+
+    const finishLoading = () => {
+      if (!mounted || settled) return;
+      settled = true;
+      setLoading(false);
+    };
+
+    // Firebase Auth can occasionally wait on browser persistence/network state
+    // indefinitely in mobile/custom-tab environments. Never leave the whole SPA
+    // behind the auth splash forever: after a short bootstrap window, fall back to
+    // the normal logged-out screen while Firebase continues its own initialization.
+    const bootTimeout = window.setTimeout(() => {
+      if (!settled && mounted) {
+        console.warn('[Firebase auth] bootstrap timeout; continuing to Login screen');
+        finishLoading();
+      }
+    }, AUTH_BOOT_TIMEOUT_MS);
 
     const loadProfileInBackground = async (currentUser: User) => {
       const isOwner = currentUser.email?.toLowerCase() === OWNER_EMAIL;
@@ -48,7 +67,6 @@ export function useAuth() {
         if (!mounted) return;
         setAppUser(profile);
 
-        // Keep the profile synchronized, but never block the first paint on this write.
         void setDoc(profileRef, {
           ...profile,
           updatedAt: serverTimestamp(),
@@ -81,12 +99,10 @@ export function useAuth() {
 
       if (!currentUser) {
         setAppUser(null);
-        setLoading(false);
+        finishLoading();
         return;
       }
 
-      // Firebase Auth is the critical path. Render immediately and hydrate the
-      // Firestore profile in the background instead of blocking the first screen.
       const isOwner = currentUser.email?.toLowerCase() === OWNER_EMAIL;
       const now = new Date().toISOString();
       setAppUser({
@@ -100,12 +116,13 @@ export function useAuth() {
         createdAt: now,
         lastLoginAt: now,
       });
-      setLoading(false);
+      finishLoading();
       void loadProfileInBackground(currentUser);
     });
 
     return () => {
       mounted = false;
+      window.clearTimeout(bootTimeout);
       unsubscribe();
     };
   }, []);
