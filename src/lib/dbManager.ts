@@ -1,10 +1,9 @@
 import { getSupabase, isSupabaseConfigured, verifySupabaseConnection } from './supabase';
 import { toast } from 'react-hot-toast';
 
-export type DbProvider = 'local' | 'firebase' | 'supabase';
+export type DbProvider = 'local' | 'supabase';
 export interface DbHealthStatus {
   local: { status: 'healthy' | 'warning'; message: string };
-  firebase: { status: 'healthy' | 'error' | 'offline'; latencyMs: number; message: string };
   supabase: { status: 'healthy' | 'error' | 'offline' | 'unconfigured'; latencyMs: number; message: string };
 }
 export interface SyncStats { transactions: number; customers: number; appointments: number; warranties: number; quickNotes: number; }
@@ -16,9 +15,14 @@ let actualProvider: DbProvider = 'supabase';
 let autoFailover = true;
 let healthStatus: DbHealthStatus = {
   local: { status: 'healthy', message: 'LocalStorage พร้อมใช้งานเป็น offline cache' },
-  firebase: { status: 'offline', latencyMs: 0, message: 'Firebase ถูกยกเลิกการใช้งาน' },
   supabase: { status: 'unconfigured', latencyMs: 0, message: 'กำลังตรวจสอบ Supabase' },
 };
+
+if (typeof window !== 'undefined') {
+  const stored = localStorage.getItem('solar_preferred_database_mode');
+  if (stored === 'local' || stored === 'supabase') preferredProvider = stored;
+  actualProvider = preferredProvider;
+}
 
 const notify = () => subscribers.forEach(cb => cb({ preferredProvider, actualProvider, autoFailover, health: healthStatus }));
 
@@ -29,11 +33,10 @@ export const dbManager = {
   getHealthStatus: () => healthStatus,
   getLastSyncSuccessTimestamps: () => ({
     local: localStorage.getItem('solar_last_sync_success_local'),
-    firebase: null,
     supabase: localStorage.getItem('solar_last_sync_success_supabase'),
   }),
   setPreferredProvider(provider: DbProvider) {
-    preferredProvider = provider === 'firebase' ? 'supabase' : provider;
+    preferredProvider = provider;
     actualProvider = preferredProvider === 'local' ? 'local' : 'supabase';
     localStorage.setItem('solar_preferred_database_mode', actualProvider);
     notify();
@@ -56,7 +59,6 @@ export const dbManager = {
       healthStatus.supabase = result.isConnected ? { status: 'healthy', latencyMs: result.latencyMs, message: result.message } : { status: 'error', latencyMs: result.latencyMs, message: result.message };
       if (result.isConnected) localStorage.setItem('solar_last_sync_success_supabase', new Date().toISOString());
     }
-    healthStatus.firebase = { status: 'offline', latencyMs: 0, message: 'Firebase ถูกยกเลิกการใช้งาน' };
     this.recalculateActualProvider();
     return healthStatus;
   },
@@ -74,7 +76,7 @@ export const dbManager = {
       if (!error) stats[key] = count || 0;
     }
     localStorage.setItem('solar_last_sync_success_supabase', new Date().toISOString());
-    toast.success('Supabase ซิงค์และตรวจสอบข้อมูลเรียบร้อยแล้ว');
+    toast.success('ตรวจสอบ Supabase และข้อมูลหลักเรียบร้อยแล้ว');
     return { success: true, stats };
   },
   addErrorLog(provider: string, operation: string, message: string, failover: boolean) {
