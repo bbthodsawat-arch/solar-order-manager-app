@@ -1,29 +1,146 @@
 import { createClient, SupabaseClient, User } from '@supabase/supabase-js';
 
-// Supabase client configuration. The publishable key is intentionally safe for browser use.
 const SUPABASE_URL = 'https://pvicuqkichylokbywxvo.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_fzT4T0qQXHmGlH1hvREKng_wyze3omZ';
 const PRODUCTION_APP_URL = 'https://solar-order-manager-app.vercel.app';
 
-function getStoredUrl():string{if(typeof import.meta!=='undefined'){if(import.meta.env?.VITE_SUPABASE_URL)return import.meta.env.VITE_SUPABASE_URL;if(import.meta.env?.SUPABASE_URL)return import.meta.env.SUPABASE_URL;}if(typeof process!=='undefined'){if(process.env?.VITE_SUPABASE_URL)return process.env.VITE_SUPABASE_URL;if(process.env?.SUPABASE_URL)return process.env.SUPABASE_URL;}if(typeof window!=='undefined')return localStorage.getItem('som_supabase_url')||SUPABASE_URL;return SUPABASE_URL;}
-function getStoredKey():string{if(typeof import.meta!=='undefined'){if(import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY)return import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;if(import.meta.env?.VITE_SUPABASE_ANON_KEY)return import.meta.env.VITE_SUPABASE_ANON_KEY;if(import.meta.env?.SUPABASE_PUBLISHABLE_KEY)return import.meta.env.SUPABASE_PUBLISHABLE_KEY;if(import.meta.env?.SUPABASE_ANON_KEY)return import.meta.env.SUPABASE_ANON_KEY;}if(typeof process!=='undefined'){if(process.env?.VITE_SUPABASE_PUBLISHABLE_KEY)return process.env.VITE_SUPABASE_PUBLISHABLE_KEY;if(process.env?.VITE_SUPABASE_ANON_KEY)return process.env.VITE_SUPABASE_ANON_KEY;if(process.env?.SUPABASE_PUBLISHABLE_KEY)return process.env.SUPABASE_PUBLISHABLE_KEY;if(process.env?.SUPABASE_ANON_KEY)return process.env.SUPABASE_ANON_KEY;}if(typeof window!=='undefined')return localStorage.getItem('som_supabase_publishable_key')||localStorage.getItem('som_supabase_anon_key')||SUPABASE_PUBLISHABLE_KEY;return SUPABASE_PUBLISHABLE_KEY;}
+function getStoredUrl(): string {
+  if (typeof import.meta !== 'undefined') {
+    if (import.meta.env?.VITE_SUPABASE_URL) return import.meta.env.VITE_SUPABASE_URL;
+    if (import.meta.env?.SUPABASE_URL) return import.meta.env.SUPABASE_URL;
+  }
+  if (typeof process !== 'undefined') {
+    if (process.env?.VITE_SUPABASE_URL) return process.env.VITE_SUPABASE_URL;
+    if (process.env?.SUPABASE_URL) return process.env.SUPABASE_URL;
+  }
+  if (typeof window !== 'undefined') return localStorage.getItem('som_supabase_url') || SUPABASE_URL;
+  return SUPABASE_URL;
+}
 
-// OAuth must return to a URL that is stable and registered in Supabase. Local development
-// keeps its own origin so localhost remains usable without affecting production OAuth.
-function getAuthRedirectUrl(path=''):string{if(typeof window==='undefined')return path;const host=window.location.hostname;const isLocalhost=host==='localhost'||host==='127.0.0.1'||host==='::1';const base=isLocalhost?window.location.origin:PRODUCTION_APP_URL;return `${base}${path}`;}
-let supabaseClient:SupabaseClient|null=null;let currentClientKey='';
-export function getSupabase():SupabaseClient|null{const url=getStoredUrl(),key=getStoredKey();if(!url||!key)return null;const clientKey=`${url}::${key}`;if(!supabaseClient||currentClientKey!==clientKey){try{supabaseClient=createClient(url,key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});currentClientKey=clientKey;}catch(error){console.warn('Failed to initialize Supabase client:',error);return null;}}return supabaseClient;}
-export async function signInWithGoogle(){const client=getSupabase();if(!client)throw new Error('Supabase ยังไม่ได้ตั้งค่า');return client.auth.signInWithOAuth({provider:'google',options:{redirectTo:getAuthRedirectUrl('/')}});}
-export async function signInWithPassword(email:string,password:string){const client=getSupabase();if(!client)throw new Error('Supabase ยังไม่ได้ตั้งค่า');return client.auth.signInWithPassword({email,password});}
-export async function sendUserPasswordResetEmail(email:string){const client=getSupabase();if(!client)throw new Error('Supabase ยังไม่ได้ตั้งค่า');return client.auth.resetPasswordForEmail(email,{redirectTo:getAuthRedirectUrl('/reset-password')});}
-export async function createNewUserWithPassword(email:string,password:string){const client=getSupabase();if(!client)throw new Error('Supabase ยังไม่ได้ตั้งค่า');const {data,error}=await client.auth.signUp({email,password});if(error)throw error;return data.user?.id||null;}
-export async function signOut(){const client=getSupabase();if(!client)return;const {error}=await client.auth.signOut();if(error)throw error;}
-export function saveSupabaseConfig(url:string,key:string){if(typeof window!=='undefined'){localStorage.setItem('som_supabase_url',url.trim());localStorage.setItem('som_supabase_publishable_key',key.trim());supabaseClient=null;currentClientKey='';}}
-export function clearSupabaseConfig(){if(typeof window!=='undefined'){localStorage.removeItem('som_supabase_url');localStorage.removeItem('som_supabase_publishable_key');localStorage.removeItem('som_supabase_anon_key');supabaseClient=null;currentClientKey='';}}
-export function getSupabaseConfigStatus(){const url=getStoredUrl(),key=getStoredKey();const isEnv=Boolean((typeof import.meta!=='undefined'&&(import.meta.env?.VITE_SUPABASE_URL||import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY))||(typeof process!=='undefined'&&(process.env?.VITE_SUPABASE_URL||process.env?.VITE_SUPABASE_PUBLISHABLE_KEY)));return{url,keyMasked:key?`${key.substring(0,10)}...${key.substring(key.length-6)}`:'',hasKey:Boolean(key),source:isEnv?'Environment Variable (.env)':'Built-in Publishable Configuration'};}
-export function isSupabaseConfigured():boolean{return Boolean(getStoredUrl()&&getStoredKey());}
-export interface SupabaseHealthCheckResult{isConfigured:boolean;isConnected:boolean;latencyMs:number;message:string;error?:string;}
-export async function verifySupabaseConnection():Promise<SupabaseHealthCheckResult>{if(!isSupabaseConfigured())return{isConfigured:false,isConnected:false,latencyMs:0,message:'ยังไม่ได้ตั้งค่า Supabase'};const client=getSupabase();if(!client)return{isConfigured:true,isConnected:false,latencyMs:0,message:'สร้าง Supabase Client ไม่สำเร็จ'};const start=Date.now();try{const {error}=await client.from('app_config').select('id').limit(1);const latencyMs=Date.now()-start;if(error)return{isConfigured:true,isConnected:false,latencyMs,message:error.message,error:error.message};return{isConfigured:true,isConnected:true,latencyMs,message:`เชื่อมต่อ Supabase สำเร็จ (${latencyMs}ms)`};}catch(err){const latencyMs=Date.now()-start;const message=err instanceof Error?err.message:String(err);return{isConfigured:true,isConnected:false,latencyMs,message,error:message};}}
-export type SupabaseAuthUser=User;
-export const FIREBASE_TO_SUPABASE_TABLE_MAPPING={transactions:'transactions',customers:'customers',appointments:'appointments',warranties:'warranties',quick_notes:'quick_notes',users:'users',audit_logs:'audit_logs',category_budgets:'category_budgets',recurring_transactions:'recurring_transactions'} as const;
-export async function getSupabaseSchemaDDL(){return `-- Solar Order Manager Supabase schema\n-- Primary tables: users, transactions, customers, appointments, warranties, quick_notes, audit_logs, category_budgets, recurring_transactions, app_config\n-- All application tables use Row Level Security (RLS).`;}
+function getStoredKey(): string {
+  if (typeof import.meta !== 'undefined') {
+    if (import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY) return import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    if (import.meta.env?.VITE_SUPABASE_ANON_KEY) return import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (import.meta.env?.SUPABASE_PUBLISHABLE_KEY) return import.meta.env.SUPABASE_PUBLISHABLE_KEY;
+    if (import.meta.env?.SUPABASE_ANON_KEY) return import.meta.env.SUPABASE_ANON_KEY;
+  }
+  if (typeof process !== 'undefined') {
+    if (process.env?.VITE_SUPABASE_PUBLISHABLE_KEY) return process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    if (process.env?.VITE_SUPABASE_ANON_KEY) return process.env.VITE_SUPABASE_ANON_KEY;
+    if (process.env?.SUPABASE_PUBLISHABLE_KEY) return process.env.SUPABASE_PUBLISHABLE_KEY;
+    if (process.env?.SUPABASE_ANON_KEY) return process.env.SUPABASE_ANON_KEY;
+  }
+  if (typeof window !== 'undefined') return localStorage.getItem('som_supabase_publishable_key') || localStorage.getItem('som_supabase_anon_key') || SUPABASE_PUBLISHABLE_KEY;
+  return SUPABASE_PUBLISHABLE_KEY;
+}
+
+function getAuthRedirectUrl(path = ''): string {
+  if (typeof window === 'undefined') return path;
+  const host = window.location.hostname;
+  const isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  const base = isLocalhost ? window.location.origin : PRODUCTION_APP_URL;
+  return `${base}${path}`;
+}
+
+let supabaseClient: SupabaseClient | null = null;
+let currentClientKey = '';
+
+export function getSupabase(): SupabaseClient | null {
+  const url = getStoredUrl();
+  const key = getStoredKey();
+  if (!url || !key) return null;
+  const clientKey = `${url}::${key}`;
+  if (!supabaseClient || currentClientKey !== clientKey) {
+    try {
+      supabaseClient = createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+      currentClientKey = clientKey;
+    } catch (error) {
+      console.warn('Failed to initialize Supabase client:', error);
+      return null;
+    }
+  }
+  return supabaseClient;
+}
+
+export async function signInWithGoogle() {
+  const client = getSupabase();
+  if (!client) throw new Error('Supabase ยังไม่ได้ตั้งค่า');
+  return client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: getAuthRedirectUrl('/') } });
+}
+export async function signInWithPassword(email: string, password: string) {
+  const client = getSupabase();
+  if (!client) throw new Error('Supabase ยังไม่ได้ตั้งค่า');
+  return client.auth.signInWithPassword({ email, password });
+}
+export async function sendUserPasswordResetEmail(email: string) {
+  const client = getSupabase();
+  if (!client) throw new Error('Supabase ยังไม่ได้ตั้งค่า');
+  return client.auth.resetPasswordForEmail(email, { redirectTo: getAuthRedirectUrl('/reset-password') });
+}
+export async function createNewUserWithPassword(email: string, password: string) {
+  const client = getSupabase();
+  if (!client) throw new Error('Supabase ยังไม่ได้ตั้งค่า');
+  const { data, error } = await client.auth.signUp({ email, password });
+  if (error) throw error;
+  return data.user?.id || null;
+}
+export async function signOut() {
+  const client = getSupabase();
+  if (!client) return;
+  const { error } = await client.auth.signOut();
+  if (error) throw error;
+}
+export function saveSupabaseConfig(url: string, key: string) {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('som_supabase_url', url.trim());
+    localStorage.setItem('som_supabase_publishable_key', key.trim());
+    supabaseClient = null;
+    currentClientKey = '';
+  }
+}
+export function clearSupabaseConfig() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('som_supabase_url');
+    localStorage.removeItem('som_supabase_publishable_key');
+    localStorage.removeItem('som_supabase_anon_key');
+    supabaseClient = null;
+    currentClientKey = '';
+  }
+}
+export function getSupabaseConfigStatus() {
+  const url = getStoredUrl();
+  const key = getStoredKey();
+  const isEnv = Boolean(
+    (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_SUPABASE_URL || import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY)) ||
+    (typeof process !== 'undefined' && (process.env?.VITE_SUPABASE_URL || process.env?.VITE_SUPABASE_PUBLISHABLE_KEY))
+  );
+  return { url, keyMasked: key ? `${key.substring(0, 10)}...${key.substring(key.length - 6)}` : '', hasKey: Boolean(key), source: isEnv ? 'Environment Variable (.env)' : 'Built-in Publishable Configuration' };
+}
+export function isSupabaseConfigured(): boolean { return Boolean(getStoredUrl() && getStoredKey()); }
+
+export interface SupabaseHealthCheckResult { isConfigured: boolean; isConnected: boolean; latencyMs: number; message: string; error?: string; }
+export async function verifySupabaseConnection(): Promise<SupabaseHealthCheckResult> {
+  if (!isSupabaseConfigured()) return { isConfigured: false, isConnected: false, latencyMs: 0, message: 'ยังไม่ได้ตั้งค่า Supabase' };
+  const client = getSupabase();
+  if (!client) return { isConfigured: true, isConnected: false, latencyMs: 0, message: 'สร้าง Supabase Client ไม่สำเร็จ' };
+  const start = Date.now();
+  try {
+    const { error } = await client.from('app_config').select('id').limit(1);
+    const latencyMs = Date.now() - start;
+    if (error) return { isConfigured: true, isConnected: false, latencyMs, message: error.message, error: error.message };
+    return { isConfigured: true, isConnected: true, latencyMs, message: `เชื่อมต่อ Supabase สำเร็จ (${latencyMs}ms)` };
+  } catch (err) {
+    const latencyMs = Date.now() - start;
+    const message = err instanceof Error ? err.message : String(err);
+    return { isConfigured: true, isConnected: false, latencyMs, message, error: message };
+  }
+}
+
+export type SupabaseAuthUser = User;
+export const SUPABASE_TABLE_MAPPING = {
+  transactions: 'transactions', customers: 'customers', appointments: 'appointments', warranties: 'warranties', quick_notes: 'quick_notes',
+  users: 'users', audit_logs: 'audit_logs', category_budgets: 'category_budgets', recurring_transactions: 'recurring_transactions'
+} as const;
+export async function getSupabaseSchemaDDL() {
+  return `-- Solar Order Manager Supabase schema\n-- Primary tables: users, transactions, customers, appointments, warranties, quick_notes, audit_logs, category_budgets, recurring_transactions, app_config\n-- All application tables use Row Level Security (RLS).`;
+}
