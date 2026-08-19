@@ -4,8 +4,9 @@ import { useEffect } from 'react';
  * SOM is intentionally Light Mode only.
  * Theme selection is handled by the global design-system presets; this hook
  * must never follow the device color scheme or expose a Dark Mode switch.
+ * The union type is retained for source compatibility with legacy callers.
  */
-export type Theme = 'light';
+export type Theme = 'light' | 'dark';
 
 export function useTheme() {
   useEffect(() => {
@@ -16,14 +17,13 @@ export function useTheme() {
   }, []);
 
   const toggleTheme = () => {
-    // Kept as a compatibility no-op for existing callers.
     document.documentElement.classList.remove('dark');
     document.documentElement.style.colorScheme = 'light';
     localStorage.setItem('theme', 'light');
   };
 
   return {
-    theme: 'light' as const,
+    theme: 'light' as Theme,
     isDarkMode: false,
     toggleTheme,
   };
@@ -74,7 +74,7 @@ export function useChartTheme() {
 
   return {
     isDarkMode: false,
-    theme: 'light' as const,
+    theme: 'light' as Theme,
     toggleTheme: () => undefined,
     chartColors,
   };
