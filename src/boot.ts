@@ -1,6 +1,6 @@
 // Production bootstrap entry. This module intentionally delays React until any
 // legacy Service Worker/cache from older mobile sessions has been removed.
-const cleanupKey = 'som-legacy-sw-cleanup-v4';
+const cleanupKey = 'som-legacy-sw-cleanup-v5';
 
 async function cleanupLegacyWorker() {
   try {
@@ -32,6 +32,10 @@ async function cleanupLegacyWorker() {
   return true;
 }
 
-if (await cleanupLegacyWorker()) {
-  await import('./main');
-}
+cleanupLegacyWorker().then((shouldStart) => {
+  if (shouldStart) {
+    void import('./main');
+  }
+}).catch(() => {
+  // The global bootstrap guard in index.html will surface any fatal startup error.
+});
