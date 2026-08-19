@@ -14,8 +14,32 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
-    // User profiles: users can read/update their own safe profile fields;
-    // the owner can administer all profiles.
+    function profileExists() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function activeUser() {
+      return isOwner() || (profileExists() && profile().get('status', 'active') == 'active');
+    }
+
+    function role(roleName) {
+      return isOwner() || (profileExists() && profile().get('role', 'staff') == roleName);
+    }
+
+    function permission(permissionName) {
+      return isOwner() || (
+        activeUser() &&
+        profile().get('permissions', {}).get(permissionName, false) == true
+      );
+    }
+
+    // User profiles: only the owner manages other accounts. A user may update
+    // only harmless self-profile fields and can never change their own role,
+    // permissions, status, or authentication metadata.
     match /users/{userId} {
       allow read: if isSelf(userId) || isOwner();
       allow create: if isSelf(userId) || isOwner();
@@ -28,52 +52,60 @@ service cloud.firestore {
       allow delete: if isOwner();
     }
 
-    // Application/business collections. SOM currently does not implement a
-    // separate role/permission system, so authenticated users may operate on
-    // business records. Unknown collections remain denied by default.
+    // Business records are protected by the user's role/permission profile.
     match /transactions/{documentId} {
-      allow read, write: if signedIn();
-    }
-    match /customers/{documentId} {
-      allow read, write: if signedIn();
-    }
-    match /appointments/{documentId} {
-      allow read, write: if signedIn();
-    }
-    match /warranties/{documentId} {
-      allow read, write: if signedIn();
-    }
-    match /quick_notes/{documentId} {
-      allow read, write: if signedIn();
-    }
-    match /category_budgets/{documentId} {
-      allow read, write: if signedIn();
-    }
-    match /recurring_transactions/{documentId} {
-      allow read, write: if signedIn();
+      allow read: if permission('canViewDashboard') || permission('canViewReports');
+      allow create: if permission('canAddTransactions');
+      allow update: if permission('canEditTransactions');
+      allow delete: if permission('canDeleteTransactions');
     }
 
-    // Login configuration is readable by authenticated users but only the
-    // account owner can change it.
+    match /customers/{documentId} {
+      allow read, create, update, delete: if permission('canManageCustomers');
+    }
+
+    match /appointments/{documentId} {
+      allow read, create, update, delete: if permission('canManageCustomers');
+    }
+
+    match /warranties/{documentId} {
+      allow read, create, update, delete: if permission('canManageCustomers');
+    }
+
+    match /quick_notes/{documentId} {
+      allow read, create, update, delete: if permission('canAddTransactions');
+    }
+
+    match /category_budgets/{documentId} {
+      allow read: if permission('canViewReports');
+      allow create, update, delete: if permission('canManageSettings');
+    }
+
+    match /recurring_transactions/{documentId} {
+      allow read: if permission('canViewReports');
+      allow create, update, delete: if permission('canManageSettings');
+    }
+
+    // Login policy is global security configuration. It is readable after
+    // authentication and writable only by users with security-management access.
     match /login_settings/{documentId} {
       allow read: if signedIn();
-      allow create, update, delete: if isOwner();
+      allow create, update, delete: if permission('canManageSecurity');
     }
 
-    // Database diagnostics use this document as a connectivity check.
     match /__healthcheck/{documentId} {
       allow read: if signedIn();
-      allow write: if isOwner();
+      allow write: if permission('canManageDatabase');
     }
 
-    // Audit records must not be mutable by ordinary users after creation.
+    // Audit records are append-only for the application and readable by
+    // authorized security/audit users. They cannot be edited or deleted by staff.
     match /audit_logs/{documentId} {
-      allow read: if isOwner();
-      allow create: if signedIn();
+      allow read: if permission('canViewAuditLogs');
+      allow create: if activeUser();
       allow update, delete: if isOwner();
     }
 
-    // No catch-all allow rule: any collection not explicitly declared above
-    // is denied by default.
+    // Any collection not explicitly declared above remains denied.
   }
 }
