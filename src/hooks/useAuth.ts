@@ -6,7 +6,9 @@ import { DEFAULT_ROLE_PERMISSIONS } from '../utils/permissions';
 import { doc, getDoc, setDoc, serverTimestamp } from '../lib/firestore-compat';
 
 const OWNER_EMAIL = 'b.b.thodsawat@gmail.com';
-const AUTH_BOOT_TIMEOUT_MS = 5000;
+// Keep a short fail-open-to-least-privilege window so slow mobile Firestore
+// profile reads cannot leave the user staring at the auth splash for 5 seconds.
+const AUTH_BOOT_TIMEOUT_MS = 1500;
 
 const buildFallbackProfile = (currentUser: User): AppUser => {
   const now = new Date().toISOString();
@@ -43,7 +45,8 @@ export function useAuth() {
     };
 
     // Never sign out a valid Firebase session merely because Firestore/profile
-    // hydration is slow. Mobile networks can legitimately take longer than 5s.
+    // hydration is slow. Mobile networks can legitimately take longer than the
+    // UI bootstrap window; continue with the least-privilege profile instead.
     const bootTimeout = window.setTimeout(() => {
       if (!mounted || settled || !currentAuthUser) return;
       console.warn('[Firebase auth] profile bootstrap timeout; continuing with least-privilege profile');
