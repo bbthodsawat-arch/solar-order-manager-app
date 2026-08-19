@@ -20,15 +20,17 @@ export function useAuth() {
     const finishLoading = () => { if (!mounted || settled) return; settled = true; setLoading(false); };
     const bootTimeout = window.setTimeout(() => {
       if (!settled && mounted) {
-        console.warn('[Firebase auth] bootstrap timeout; continuing to Login screen');
-        finishLoading();
+        console.warn('[Firebase auth] bootstrap timeout; signing out to fail closed');
+        setAppUser(null);
+        void signOut().finally(finishLoading);
       }
     }, AUTH_BOOT_TIMEOUT_MS);
 
-    const loadProfileInBackground = async (currentUser: User) => {
+    const loadProfile = async (currentUser: User) => {
       const isOwner = currentUser.email?.toLowerCase() === OWNER_EMAIL;
       const now = new Date().toISOString();
       const profileRef = doc(null, 'users', currentUser.uid);
+
       try {
         const snapshot = await getDoc(profileRef);
         const existing = snapshot.exists() ? snapshot.data() : undefined;
@@ -56,6 +58,7 @@ export function useAuth() {
         };
         if (!mounted) return;
         setAppUser(profile);
+        finishLoading();
         void setDoc(profileRef, {
           ...profile,
           updatedAt: serverTimestamp(),
@@ -65,15 +68,12 @@ export function useAuth() {
       } catch (error) {
         console.warn('[Firebase profile]', error);
         if (!mounted) return;
-        // Fail closed for non-owner profile failures: do not grant even temporary UI access.
+        setAppUser(null);
         if (!isOwner) {
-          setAppUser(null);
           await signOut();
           finishLoading();
           return;
         }
-        // The owner is identified by the verified Firebase email and can continue
-        // when the profile document is temporarily unavailable.
         setAppUser({
           uid: currentUser.uid,
           email: currentUser.email ?? null,
@@ -92,22 +92,9 @@ export function useAuth() {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (!mounted) return;
       setUser(currentUser);
-      if (!currentUser) { setAppUser(null); finishLoading(); return; }
-      const isOwner = currentUser.email?.toLowerCase() === OWNER_EMAIL;
-      const now = new Date().toISOString();
-      setAppUser({
-        uid: currentUser.uid,
-        email: currentUser.email ?? null,
-        displayName: currentUser.displayName ?? null,
-        photoURL: currentUser.photoURL ?? null,
-        role: isOwner ? 'admin' : 'staff',
-        permissions: DEFAULT_ROLE_PERMISSIONS[isOwner ? 'admin' : 'staff'],
-        status: 'active',
-        createdAt: now,
-        lastLoginAt: now,
-      });
-      finishLoading();
-      void loadProfileInBackground(currentUser);
+      setAppUser(null);
+      if (!currentUser) { finishLoading(); return; }
+      void loadProfile(currentUser);
     });
 
     return () => { mounted = false; window.clearTimeout(bootTimeout); unsubscribe(); };
