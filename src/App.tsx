@@ -7,6 +7,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { LayoutDashboard, PlusCircle, ListOrdered, Settings, Moon, Sun, Users, BarChart3, SunMedium, UserX, LogOut, Palette, UserCheck, Calendar, ShieldCheck } from 'lucide-react';
 import { QuickDesignLauncherModal } from './components/design-system/QuickDesignLauncherModal';
 import Login from './pages/Login';
+import DuePaymentsNotification from './components/DuePaymentsNotification';
+import CloudSyncIndicator from './components/CloudSyncIndicator';
 import { useAppConfig } from './hooks/useAppConfig';
 import { TransactionType, TransactionCategory } from './types';
 import { getUserPermissions } from './utils/permissions';
