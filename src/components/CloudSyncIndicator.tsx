@@ -90,7 +90,7 @@ export default function CloudSyncIndicator() {
               {actualProvider === 'local' 
                 ? 'DB: Local (กำลังเซฟ...)' 
                 : actualProvider === 'supabase'
-                ? 'DB: Supabase (กำลังซิงค์...)'
+                ? 'DB: Firebase (กำลังซิงค์...)'
                 : 'DB: Firebase (กำลังซิงค์...)'
               }
             </span>
@@ -103,7 +103,7 @@ export default function CloudSyncIndicator() {
         ) : actualProvider === 'supabase' ? (
           <>
             <Zap size={14} className="text-emerald-500" />
-            <span className="hidden sm:inline text-[11px] font-black">DB: Supabase</span>
+            <span className="hidden sm:inline text-[11px] font-black">DB: Firebase</span>
           </>
         ) : (
           <>
@@ -330,14 +330,14 @@ export default function CloudSyncIndicator() {
                     </span>
                   </div>
 
-                  {/* Supabase */}
+                  {/* Firebase */}
                   <div className="p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <div className="p-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-lg shrink-0">
                         <Zap size={13} />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[11px] font-black text-slate-800 dark:text-white">Supabase (สำรองฉุกเฉิน)</p>
+                        <p className="text-[11px] font-black text-slate-800 dark:text-white">Firebase (สำรองฉุกเฉิน)</p>
                         <p className="text-[10px] text-slate-400 truncate">
                           {successTimes.supabase 
                             ? `สำเร็จ: ${formatDistanceToNow(new Date(successTimes.supabase), { addSuffix: true, locale: th })}`
@@ -406,7 +406,7 @@ export default function CloudSyncIndicator() {
                     ฐานข้อมูลเริ่มต้น
                   </span>
                   <p className="font-black text-slate-800 dark:text-slate-100 text-xs truncate">
-                    {preferredProvider === 'firebase' ? 'Firebase Firestore' : preferredProvider === 'supabase' ? 'Supabase PostgreSQL' : 'Local Storage'}
+                    {preferredProvider === 'firebase' ? 'Firebase Firestore' : preferredProvider === 'supabase' ? 'Firebase PostgreSQL' : 'Local Storage'}
                   </p>
                 </div>
 
@@ -417,7 +417,7 @@ export default function CloudSyncIndicator() {
                     เชื่อมต่อใช้งานจริง
                   </span>
                   <p className="font-black text-emerald-600 dark:text-emerald-400 text-xs truncate">
-                    {actualProvider === 'firebase' ? 'Firebase Cloud' : actualProvider === 'supabase' ? 'Supabase Cloud' : 'Local (ออฟไลน์)'}
+                    {actualProvider === 'firebase' ? 'Firebase Cloud' : actualProvider === 'supabase' ? 'Firebase Cloud' : 'Local (ออฟไลน์)'}
                   </p>
                 </div>
 

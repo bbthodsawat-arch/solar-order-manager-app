@@ -137,7 +137,7 @@ export default function ErrorLogger() {
             onClick={() => handleSimulateError('supabase')}
             className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 rounded-xl text-[11px] font-bold border border-emerald-200/50 dark:border-emerald-800/50 transition-all cursor-pointer active:scale-95"
           >
-            ⚡ จำลอง Supabase ขัดข้อง
+            ⚡ จำลอง Firebase ขัดข้อง
           </button>
           <button
             onClick={() => handleSimulateError('local')}
