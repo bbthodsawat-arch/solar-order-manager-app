@@ -11,236 +11,125 @@
     --dashboard-mobile-gap: 12px;
   }
 
-  /* Keep one primary navigation system on mobile. Bottom navigation already
-     provides the main destinations, so the duplicate horizontal nav is removed. */
-  header > div.lg\:hidden {
-    display: none !important;
-  }
+  header > div.lg\:hidden { display: none !important; }
+  header > div.max-w-7xl { height: 54px !important; padding-inline: 12px !important; }
+  header > div.max-w-7xl img { width: 34px !important; height: 34px !important; }
+  header > div.max-w-7xl h1 { font-size: 13px !important; }
 
-  header > div.max-w-7xl {
-    height: 54px !important;
-    padding-inline: 12px !important;
-  }
-
-  header > div.max-w-7xl img {
-    width: 34px !important;
-    height: 34px !important;
-  }
-
-  header > div.max-w-7xl h1 {
-    font-size: 13px !important;
-  }
-
-  /* Dashboard page canvas */
   main > div[class*="space-y-6"][class*="pb-8"] {
     gap: var(--dashboard-mobile-gap);
-    padding-bottom: 104px !important;
+    padding: 8px var(--dashboard-mobile-gutter) 118px !important;
   }
+  main > div[class*="space-y-6"][class*="pb-8"] > * { min-width: 0; }
 
+  /* Premium POS canvas: quiet background, dense information hierarchy. */
+  main { background: #f6f8fb !important; }
   main > div[class*="space-y-6"][class*="pb-8"] > * {
-    min-width: 0;
+    transition: transform .18s ease, box-shadow .18s ease;
   }
 
-  /* Daily reminder: compact, calm and dismissible-looking instead of dominant */
-  main > div[class*="space-y-6"][class*="pb-8"] > :first-child {
-    margin-bottom: 0;
-  }
-
-  /* Executive hero */
+  /* Executive hero becomes the operating cockpit. */
   main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) {
     padding: 16px !important;
-    border-radius: var(--dashboard-mobile-radius) !important;
-    box-shadow: 0 8px 30px rgba(15, 23, 42, .06) !important;
+    border-radius: 24px !important;
+    border: 1px solid rgba(15,23,42,.06) !important;
+    box-shadow: 0 12px 32px rgba(15,23,42,.07) !important;
+    background: linear-gradient(145deg,#ffffff 0%,#fbfefc 58%,#f3fbf7 100%) !important;
   }
 
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .relative.z-10 {
-    gap: 14px !important;
-  }
+  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .relative.z-10 { gap: 14px !important; }
 
-  /* Badge row becomes a horizontal utility rail rather than a tall wrapping block. */
+  /* Utility rail: branch / terminal / snapshot remain immediately visible. */
   main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .flex.flex-wrap.items-center.gap-2 {
     flex-wrap: nowrap !important;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
-    padding-bottom: 2px;
+    padding: 2px 2px 5px;
     margin-right: -4px;
   }
-
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .flex.flex-wrap.items-center.gap-2::-webkit-scrollbar {
-    display: none;
-  }
-
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .flex.flex-wrap.items-center.gap-2 > * {
-    flex: 0 0 auto;
-  }
-
-  /* Keep primary identity and snapshot visible; secondary utilities stay out of the way. */
+  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .flex.flex-wrap.items-center.gap-2::-webkit-scrollbar { display:none; }
+  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .flex.flex-wrap.items-center.gap-2 > * { flex:0 0 auto; }
   main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .flex.flex-wrap.items-center.gap-2 > button:nth-child(4),
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .flex.flex-wrap.items-center.gap-2 > button:nth-child(5) {
-    display: none;
-  }
+  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .flex.flex-wrap.items-center.gap-2 > button:nth-child(5) { display:none; }
 
-  /* Hero identity: logo becomes compact, title gets a mobile reading measure. */
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) img {
-    width: 48px !important;
-    height: 48px !important;
-  }
-
+  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) img { width:44px !important; height:44px !important; }
   main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) h1 {
-    font-size: 22px !important;
-    line-height: 1.2 !important;
-    letter-spacing: -0.02em;
+    font-size:22px !important; line-height:1.18 !important; letter-spacing:-.025em;
   }
+  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) p { font-size:12px !important; line-height:1.5 !important; }
 
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) p {
-    font-size: 12px !important;
-    line-height: 1.55 !important;
-  }
-
-  /* Hero sub-metrics: two-column compact chips. */
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .pt-1.flex.flex-wrap {
-    display: grid !important;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px !important;
-  }
-
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .pt-1.flex.flex-wrap > div {
-    min-width: 0;
-    padding: 9px 10px !important;
-    border-radius: 14px !important;
-  }
-
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .pt-1.flex.flex-wrap > div:last-child {
-    grid-column: 1 / -1;
-  }
-
-  /* Timeframe selector: horizontal segmented control with thumb-sized targets. */
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .shrink-0 {
-    width: 100%;
-  }
-
+  /* Timeframe selector as a thumb-friendly segmented control. */
+  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .shrink-0 { width:100%; }
   main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .shrink-0 > div {
-    width: 100%;
-    overflow-x: auto;
-    display: flex;
-    scrollbar-width: none;
+    width:100%; overflow-x:auto; display:flex; scrollbar-width:none; background:#f1f4f7; padding:3px; border-radius:14px;
   }
-
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .shrink-0 > div::-webkit-scrollbar {
-    display: none;
-  }
-
+  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .shrink-0 > div::-webkit-scrollbar { display:none; }
   main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .shrink-0 > div > button {
-    flex: 1 0 auto;
-    min-height: 40px;
-    padding-inline: 14px !important;
+    flex:1 0 auto; min-height:40px; padding:0 14px !important; border-radius:11px !important;
   }
 
-  /* Balance / primary action card */
+  /* Primary money/action card. */
   main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(3) {
-    padding: 18px !important;
-    border-radius: var(--dashboard-mobile-radius) !important;
-    gap: 14px !important;
-    align-items: stretch !important;
+    padding:17px !important; border-radius:22px !important; gap:12px !important;
+    align-items:stretch !important; border:1px solid rgba(15,23,42,.06) !important;
+    box-shadow:0 10px 26px rgba(15,23,42,.055) !important;
   }
+  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(3) button { min-height:46px; }
 
-  main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(3) button {
-    min-height: 46px;
-  }
-
-  /* KPI section */
+  /* KPI cards: two-column POS tiles, strong number hierarchy. */
   main > div[class*="space-y-6"][class*="pb-8"] [class*="grid-cols-2"][class*="sm:grid-cols-3"][class*="lg:grid-cols-6"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 10px !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:10px !important;
   }
-
   main > div[class*="space-y-6"][class*="pb-8"] [class*="grid-cols-2"][class*="sm:grid-cols-3"][class*="lg:grid-cols-6"] > * {
-    min-width: 0;
-    min-height: 142px;
-    padding: 13px !important;
-    border-radius: 18px !important;
+    min-width:0; min-height:128px; padding:14px !important; border-radius:20px !important;
+    border:1px solid rgba(15,23,42,.055) !important; box-shadow:0 6px 18px rgba(15,23,42,.045) !important;
   }
-
   main > div[class*="space-y-6"][class*="pb-8"] [class*="grid-cols-2"][class*="sm:grid-cols-3"][class*="lg:grid-cols-6"] .text-xl,
   main > div[class*="space-y-6"][class*="pb-8"] [class*="grid-cols-2"][class*="sm:grid-cols-3"][class*="lg:grid-cols-6"] .text-lg {
-    font-size: 18px !important;
-    line-height: 1.2;
+    font-size:20px !important; line-height:1.15;
   }
 
-  /* Make KPI customization secondary on mobile. */
-  main > div[class*="space-y-6"][class*="pb-8"] [class*="grid-cols-2"][class*="sm:grid-cols-3"][class*="lg:grid-cols-6"] + * button {
-    min-height: 40px;
+  /* Quick action / add-order controls: full-width, thumb reachable and sticky above nav. */
+  main button {
+    touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
   }
+  main > div[class*="space-y-6"][class*="pb-8"] button:active { transform:scale(.985); }
 
-  /* Analytical sections: one clear card at a time. */
+  /* Analytical sections: one decision per card. */
   main > div[class*="space-y-6"][class*="pb-8"] [class*="grid-cols-1"][class*="lg:grid-cols-3"] {
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 12px !important;
+    grid-template-columns:minmax(0,1fr) !important; gap:12px !important;
   }
-
   main > div[class*="space-y-6"][class*="pb-8"] [class*="grid-cols-1"][class*="lg:grid-cols-3"] > * {
-    min-width: 0;
-    border-radius: 20px !important;
+    min-width:0; border-radius:20px !important;
   }
 
-  /* Tables become horizontal scroll regions instead of squeezing columns. */
-  main > div[class*="space-y-6"][class*="pb-8"] table {
-    min-width: 620px;
-  }
-
+  /* Tables remain usable without crushing columns. */
+  main > div[class*="space-y-6"][class*="pb-8"] table { min-width:620px; }
   main > div[class*="space-y-6"][class*="pb-8"] .overflow-x-auto {
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;
   }
+  main > div[class*="space-y-6"][class*="pb-8"] .overflow-x-auto::-webkit-scrollbar { display:none; }
 
-  main > div[class*="space-y-6"][class*="pb-8"] .overflow-x-auto::-webkit-scrollbar {
-    display: none;
-  }
+  main > div[class*="space-y-6"][class*="pb-8"] .p-6 { padding:16px !important; }
+  main > div[class*="space-y-6"][class*="pb-8"] .p-8 { padding:18px !important; }
 
-  /* Large card padding becomes thumb-friendly but information-dense. */
-  main > div[class*="space-y-6"][class*="pb-8"] .p-6 {
-    padding: 16px !important;
-  }
-
-  main > div[class*="space-y-6"][class*="pb-8"] .p-8 {
-    padding: 18px !important;
-  }
-
-  /* Buttons and controls follow comfortable touch targets. */
-  main > div[class*="space-y-6"][class*="pb-8"] button {
-    touch-action: manipulation;
-  }
-
-  /* Prevent accidental horizontal page overflow from charts/long labels. */
+  /* Charts and long labels never create horizontal page scroll. */
   main > div[class*="space-y-6"][class*="pb-8"] canvas,
-  main > div[class*="space-y-6"][class*="pb-8"] svg {
-    max-width: 100%;
-  }
+  main > div[class*="space-y-6"][class*="pb-8"] svg { max-width:100%; }
 
-  /* Bottom navigation safe-area breathing room. */
-  main {
-    padding-bottom: calc(104px + env(safe-area-inset-bottom)) !important;
-  }
+  /* Bottom navigation safe area. */
+  main { padding-bottom:calc(112px + env(safe-area-inset-bottom)) !important; }
 }
 
-@media (max-width: 380px) {
-  main > div[class*="space-y-6"][class*="pb-8"] [class*="grid-cols-2"][class*="sm:grid-cols-3"][class*="lg:grid-cols-6"] {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-
-  main > div[class*="space-y-6"][class*="pb-8"] [class*="grid-cols-2"][class*="sm:grid-cols-3"][class*="lg:grid-cols-6"] > * {
-    min-height: 118px;
-  }
+@media (max-width:380px) {
+  main > div[class*="space-y-6"][class*="pb-8"] [class*="grid-cols-2"][class*="sm:grid-cols-3"][class*="lg:grid-cols-6"] { grid-template-columns:minmax(0,1fr) !important; }
+  main > div[class*="space-y-6"][class*="pb-8"] [class*="grid-cols-2"][class*="sm:grid-cols-3"][class*="lg:grid-cols-6"] > * { min-height:112px; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  main > div[class*="space-y-6"][class*="pb-8"] *,
-  main > div[class*="space-y-6"][class*="pb-8"] *::before,
-  main > div[class*="space-y-6"][class*="pb-8"] *::after {
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: .01ms !important;
-    scroll-behavior: auto !important;
+@media (prefers-reduced-motion:reduce) {
+  main > div[class*="space-y-6"][class*="pb-8"] *, main > div[class*="space-y-6"][class*="pb-8"] *::before, main > div[class*="space-y-6"][class*="pb-8"] *::after {
+    animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; scroll-behavior:auto !important;
   }
 }
