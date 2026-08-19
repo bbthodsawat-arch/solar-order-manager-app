@@ -1,4 +1,4 @@
-import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
+import { getApp, getApps, initializeApp, deleteApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, signOut as firebaseSignOut, type User, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
@@ -50,22 +50,45 @@ export async function signInWithGoogle() {
 
 export async function signInWithPassword(email: string, pass: string) {
   if (!auth) return { user: null, error: new Error('Firebase is not configured') };
-  try { await setPersistence(auth, browserSessionPersistence); const result = await signInWithEmailAndPassword(auth, email, pass); return { user: result.user, error: null }; }
-  catch (error) { return { user: null, error }; }
+  try {
+    await setPersistence(auth, browserSessionPersistence);
+    const result = await signInWithEmailAndPassword(auth, email, pass);
+    return { user: result.user, error: null };
+  } catch (error) {
+    return { user: null, error };
+  }
 }
+
 export async function sendUserPasswordResetEmail(email: string) {
   if (!auth) return { error: new Error('Firebase is not configured') };
-  try { await sendPasswordResetEmail(auth, email); return { error: null }; }
-  catch (error) { return { error }; }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    return { error: null };
+  } catch (error) {
+    return { error };
+  }
 }
 export const sendUserPasswordResetEmailCompat = sendUserPasswordResetEmail;
 export const sendUserPasswordResetEmailLegacy = sendUserPasswordResetEmail;
+
+/**
+ * Creates a password account using an isolated Firebase Auth instance.
+ * The currently signed-in administrator is never replaced by the new account.
+ */
 export async function createNewUserWithPassword(email: string, pass: string): Promise<string> {
-  if (!auth) throw new Error('Firebase is not configured');
-  await setPersistence(auth, browserSessionPersistence);
-  const result = await createUserWithEmailAndPassword(auth, email, pass);
-  return result.user.uid;
+  if (!firebaseApp) throw new Error('Firebase is not configured');
+  const secondaryName = `som-user-admin-${Date.now()}`;
+  const secondaryApp = initializeApp(firebaseConfig, secondaryName);
+  const secondaryAuth = getAuth(secondaryApp);
+  try {
+    const result = await createUserWithEmailAndPassword(secondaryAuth, email, pass);
+    await firebaseSignOut(secondaryAuth);
+    return result.user.uid;
+  } finally {
+    await deleteApp(secondaryApp).catch(() => undefined);
+  }
 }
+
 export async function signOut() { if (auth) await firebaseSignOut(auth); }
 export type { User };
 
