@@ -42,9 +42,37 @@ service cloud.firestore {
         || request.resource.data.get('allow_password_login', true) == true;
     }
 
+    // A newly authenticated user may create only a safe default staff profile.
+    // This prevents a user from self-registering as admin/manager or granting
+    // themselves elevated permissions through the client-side Firestore API.
+    function safeSelfRegistration(userId) {
+      return isSelf(userId)
+        && !exists(/databases/$(database)/documents/users/$(userId))
+        && request.resource.data.keys().hasOnly([
+          'uid', 'email', 'username', 'displayName', 'photoURL',
+          'role', 'permissions', 'status', 'authProvider', 'createdAt', 'lastLoginAt'
+        ])
+        && request.resource.data.get('uid', request.auth.uid) == request.auth.uid
+        && request.resource.data.get('role', 'staff') == 'staff'
+        && request.resource.data.get('status', 'active') == 'active'
+        && request.resource.data.get('permissions', {}).get('canViewDashboard', true) == true
+        && request.resource.data.get('permissions', {}).get('canAddTransactions', true) == true
+        && request.resource.data.get('permissions', {}).get('canEditTransactions', true) == true
+        && request.resource.data.get('permissions', {}).get('canDeleteTransactions', false) == false
+        && request.resource.data.get('permissions', {}).get('canViewReports', true) == true
+        && request.resource.data.get('permissions', {}).get('canManageCustomers', true) == true
+        && request.resource.data.get('permissions', {}).get('canManageInventory', true) == true
+        && request.resource.data.get('permissions', {}).get('canManageSettings', false) == false
+        && request.resource.data.get('permissions', {}).get('canManageUsers', false) == false
+        && request.resource.data.get('permissions', {}).get('canManageSecurity', false) == false
+        && request.resource.data.get('permissions', {}).get('canManageDatabase', false) == false
+        && request.resource.data.get('permissions', {}).get('canExportData', false) == false
+        && request.resource.data.get('permissions', {}).get('canViewAuditLogs', false) == false;
+    }
+
     match /users/{userId} {
       allow read: if isSelf(userId) || isOwner();
-      allow create: if isSelf(userId) || isOwner();
+      allow create: if isOwner() || safeSelfRegistration(userId);
       allow update: if isOwner() || (
         isSelf(userId) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -87,10 +115,6 @@ service cloud.firestore {
       allow create, update, delete: if permission('canManageSettings');
     }
 
-    // Login policy is global security configuration. It is readable after
-    // authentication and writable only by users with security-management access.
-    // The rules also guarantee that the Command Center can never save a policy
-    // that disables every login method and locks all users out.
     match /login_settings/{documentId} {
       allow read: if signedIn();
       allow create, update: if permission('canManageSecurity') && validLoginPolicy();
