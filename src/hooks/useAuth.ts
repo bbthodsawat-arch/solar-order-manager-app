@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { auth, signOut } from '../lib/firebase';
 import { AppUser, UserRole } from '../types';
 import { DEFAULT_ROLE_PERMISSIONS } from '../utils/permissions';
 import { doc, getDoc, setDoc, serverTimestamp } from '../lib/firestore-compat';
@@ -14,24 +14,10 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!auth) {
-      setLoading(false);
-      return;
-    }
-
+    if (!auth) { setLoading(false); return; }
     let mounted = true;
     let settled = false;
-
-    const finishLoading = () => {
-      if (!mounted || settled) return;
-      settled = true;
-      setLoading(false);
-    };
-
-    // Firebase Auth can occasionally wait on browser persistence/network state
-    // indefinitely in mobile/custom-tab environments. Never leave the whole SPA
-    // behind the auth splash forever: after a short bootstrap window, fall back to
-    // the normal logged-out screen while Firebase continues its own initialization.
+    const finishLoading = () => { if (!mounted || settled) return; settled = true; setLoading(false); };
     const bootTimeout = window.setTimeout(() => {
       if (!settled && mounted) {
         console.warn('[Firebase auth] bootstrap timeout; continuing to Login screen');
@@ -43,14 +29,19 @@ export function useAuth() {
       const isOwner = currentUser.email?.toLowerCase() === OWNER_EMAIL;
       const now = new Date().toISOString();
       const profileRef = doc(null, 'users', currentUser.uid);
-
       try {
         const snapshot = await getDoc(profileRef);
         const existing = snapshot.exists() ? snapshot.data() : undefined;
         const role: UserRole = isOwner ? 'admin' : ((existing?.role as UserRole) || 'staff');
-        const permissions = isOwner
-          ? DEFAULT_ROLE_PERMISSIONS.admin
-          : (existing?.permissions || DEFAULT_ROLE_PERMISSIONS[role]);
+        const status: 'active' | 'suspended' = isOwner ? 'active' : ((existing?.status as 'active' | 'suspended') || 'active');
+        const permissions = isOwner ? DEFAULT_ROLE_PERMISSIONS.admin : (existing?.permissions || DEFAULT_ROLE_PERMISSIONS[role]);
+
+        if (status === 'suspended') {
+          setAppUser(null);
+          await signOut();
+          if (mounted) finishLoading();
+          return;
+        }
 
         const profile: AppUser = {
           uid: currentUser.uid,
@@ -59,32 +50,30 @@ export function useAuth() {
           photoURL: currentUser.photoURL ?? null,
           role,
           permissions,
-          status: isOwner ? 'active' : (existing?.status || 'active'),
+          status,
           createdAt: existing?.createdAt || now,
           lastLoginAt: now,
         };
-
         if (!mounted) return;
         setAppUser(profile);
-
         void setDoc(profileRef, {
           ...profile,
           updatedAt: serverTimestamp(),
           createdAt: existing?.createdAt || serverTimestamp(),
           lastLoginAt: serverTimestamp(),
-        }, { merge: true }).catch((error) => {
-          console.warn('[Firebase profile sync]', error);
-        });
+        }, { merge: true }).catch((error) => console.warn('[Firebase profile sync]', error));
       } catch (error) {
         console.warn('[Firebase profile]', error);
         if (!mounted) return;
+        // Fail closed for non-owner profile failures: do not grant privileged access.
+        const fallbackRole: UserRole = isOwner ? 'admin' : 'staff';
         setAppUser({
           uid: currentUser.uid,
           email: currentUser.email ?? null,
           displayName: currentUser.displayName ?? null,
           photoURL: currentUser.photoURL ?? null,
-          role: isOwner ? 'admin' : 'staff',
-          permissions: DEFAULT_ROLE_PERMISSIONS[isOwner ? 'admin' : 'staff'],
+          role: fallbackRole,
+          permissions: DEFAULT_ROLE_PERMISSIONS[fallbackRole],
           status: 'active',
           createdAt: now,
           lastLoginAt: now,
@@ -94,15 +83,8 @@ export function useAuth() {
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (!mounted) return;
-
       setUser(currentUser);
-
-      if (!currentUser) {
-        setAppUser(null);
-        finishLoading();
-        return;
-      }
-
+      if (!currentUser) { setAppUser(null); finishLoading(); return; }
       const isOwner = currentUser.email?.toLowerCase() === OWNER_EMAIL;
       const now = new Date().toISOString();
       setAppUser({
@@ -120,11 +102,7 @@ export function useAuth() {
       void loadProfileInBackground(currentUser);
     });
 
-    return () => {
-      mounted = false;
-      window.clearTimeout(bootTimeout);
-      unsubscribe();
-    };
+    return () => { mounted = false; window.clearTimeout(bootTimeout); unsubscribe(); };
   }, []);
 
   return { user, appUser, loading };
