@@ -11,6 +11,26 @@
     --dashboard-mobile-gap: 12px;
   }
 
+  /* Keep one primary navigation system on mobile. Bottom navigation already
+     provides the main destinations, so the duplicate horizontal nav is removed. */
+  header > div.lg\:hidden {
+    display: none !important;
+  }
+
+  header > div.max-w-7xl {
+    height: 54px !important;
+    padding-inline: 12px !important;
+  }
+
+  header > div.max-w-7xl img {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  header > div.max-w-7xl h1 {
+    font-size: 13px !important;
+  }
+
   /* Dashboard page canvas */
   main > div[class*="space-y-6"][class*="pb-8"] {
     gap: var(--dashboard-mobile-gap);
@@ -55,7 +75,7 @@
     flex: 0 0 auto;
   }
 
-  /* Keep the primary identity and snapshot visible; move secondary utilities out of the way. */
+  /* Keep primary identity and snapshot visible; secondary utilities stay out of the way. */
   main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .flex.flex-wrap.items-center.gap-2 > button:nth-child(4),
   main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .flex.flex-wrap.items-center.gap-2 > button:nth-child(5) {
     display: none;
@@ -95,7 +115,7 @@
     grid-column: 1 / -1;
   }
 
-  /* Timeframe selector: sticky-feeling segmented control with thumb-sized targets. */
+  /* Timeframe selector: horizontal segmented control with thumb-sized targets. */
   main > div[class*="space-y-6"][class*="pb-8"] > :nth-child(2) .shrink-0 {
     width: 100%;
   }
@@ -164,7 +184,7 @@
     border-radius: 20px !important;
   }
 
-  /* Tables become cards/scroll regions instead of squeezing columns. */
+  /* Tables become horizontal scroll regions instead of squeezing columns. */
   main > div[class*="space-y-6"][class*="pb-8"] table {
     min-width: 620px;
   }
@@ -187,7 +207,7 @@
     padding: 18px !important;
   }
 
-  /* Buttons and controls follow WCAG-friendly touch sizing. */
+  /* Buttons and controls follow comfortable touch targets. */
   main > div[class*="space-y-6"][class*="pb-8"] button {
     touch-action: manipulation;
   }
