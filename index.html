@@ -9,7 +9,7 @@
     <meta name="som-build" content="377e130-auth-fix" />
     <title>ร้านกลางนาโซล่าเซลล์ - บันทึกรายรับ-รายจ่าย</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
@@ -22,20 +22,54 @@
         rel="stylesheet"
       />
     </noscript>
+  </head>
+  <body class="bg-slate-50 text-slate-800 antialiased font-sans selection:bg-amber-100 selection:text-amber-900">
+    <div id="root"></div>
     <script>
-      // The app no longer uses a Service Worker. Remove any legacy registration/cache
-      // before the app starts so old mobile/custom-tab sessions cannot serve stale UI.
-      (() => {
+      // Legacy mobile Service Workers can keep serving an old Firebase/UI bundle.
+      // Do not request the React module until all old registrations/caches are gone.
+      (async () => {
+        const cleanupKey = 'som-legacy-sw-cleanup-v3';
+        const loadApp = () => {
+          const script = document.createElement('script');
+          script.type = 'module';
+          script.src = `/assets/app.js?boot=${Date.now()}`;
+          script.crossOrigin = 'anonymous';
+          document.body.appendChild(script);
+        };
+
         try {
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then((registrations) => {
-              registrations.forEach((registration) => { void registration.unregister(); });
-            }).catch(() => {});
+          const registrations = 'serviceWorker' in navigator
+            ? await navigator.serviceWorker.getRegistrations()
+            : [];
+          const hadLegacyController = Boolean(navigator.serviceWorker?.controller);
+          const hadLegacyRegistration = registrations.length > 0;
+
+          if (registrations.length) {
+            await Promise.all(registrations.map((registration) => registration.unregister()));
           }
           if ('caches' in window) {
-            caches.keys().then((names) => Promise.all(names.map((name) => caches.delete(name)))).catch(() => {});
+            const names = await caches.keys();
+            await Promise.all(names.map((name) => caches.delete(name)));
           }
-        } catch (_) {}
+
+          // A Service Worker controller remains attached to the current document
+          // until navigation. Reload once after unregistering so the next document
+          // starts outside the legacy worker before loading React.
+          const needsReload = hadLegacyController || hadLegacyRegistration;
+          const reloadCount = Number(sessionStorage.getItem(cleanupKey) || '0');
+          if (needsReload && reloadCount < 2) {
+            sessionStorage.setItem(cleanupKey, String(reloadCount + 1));
+            location.reload();
+            return;
+          }
+          sessionStorage.removeItem(cleanupKey);
+        } catch (_) {
+          // Continue to the current production bundle even if browser cleanup APIs
+          // are unavailable in a restricted/custom-tab environment.
+        }
+
+        loadApp();
       })();
     </script>
     <script>
@@ -68,9 +102,5 @@
         }, 12000);
       })();
     </script>
-  </head>
-  <body class="bg-slate-50 text-slate-800 antialiased font-sans selection:bg-amber-100 selection:text-amber-900">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
