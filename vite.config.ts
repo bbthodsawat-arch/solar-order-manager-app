@@ -12,27 +12,18 @@ export default defineConfig({
     dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
-    include: ['react','react-dom','react/jsx-runtime','react/jsx-dev-runtime','react-hot-toast','motion/react','lucide-react','recharts','date-fns'],
+    include: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-hot-toast', 'motion/react', 'lucide-react', 'recharts', 'date-fns'],
   },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
     sourcemap: false,
     chunkSizeWarningLimit: 1200,
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (!id.includes('node_modules')) return;
-          if (id.includes('/firebase/')) return 'vendor-firebase';
-          if (id.includes('/recharts/') || id.includes('/date-fns/')) return 'vendor-charts';
-          if (id.includes('/jspdf/') || id.includes('/html2canvas/') || id.includes('/html5-qrcode/')) return 'vendor-docs';
-          if (id.includes('/@google/genai/')) return 'vendor-ai';
-          if (id.includes('/motion/') || id.includes('/lucide-react/')) return 'vendor-ui';
-          if (id.includes('/react/') || id.includes('/react-dom/')) return 'vendor-react';
-          return 'vendor';
-        },
-      },
-    },
+    // Keep Rollup's native chunk graph. The previous hand-written vendor
+    // partitioning could create cross-chunk circular evaluation order and
+    // trigger browser TDZ errors such as "Cannot access 'A' before initialization".
+    // Correctness is more important than the old manual split; Vite/Rollup can
+    // still split dynamic imports safely without forcing module execution order.
   },
   server: {
     hmr: process.env.DISABLE_HMR !== 'true',
