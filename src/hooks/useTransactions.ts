@@ -35,6 +35,12 @@ function isRetryableFirestoreError(error: any): boolean {
     || /network|offline|failed to fetch|quota|temporarily unavailable/i.test(String(error?.message || ''));
 }
 
+// A single page can mount useTransactions from several screens/widgets at once.
+// Keep the offline uploader process-wide so multiple hook instances cannot upload
+// the same queue item concurrently and create duplicate Firestore transactions.
+let offlineSyncPromise: Promise<void> | null = null;
+let offlineSyncCooldownUntil = 0;
+
 export function useTransactions() {
   const [firestoreTransactions, setFirestoreTransactions] = useState<Transaction[]>([]);
   const [offlineQueue, setOfflineQueue] = useState<Transaction[]>(() => {
@@ -76,64 +82,95 @@ export function useTransactions() {
     return merged.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [firestoreTransactions, offlineQueue]);
 
-  const syncOfflineQueue = async () => {
+  const syncOfflineQueue = async (): Promise<void> => {
     if (!isOnline || !user || isSyncingRef.current) return;
-    let currentQueue: Transaction[] = [];
-    try {
-      const saved = localStorage.getItem('offline_transactions_queue');
-      currentQueue = saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Error reading offline queue for sync:', e);
-      return;
-    }
-    if (currentQueue.length === 0) return;
-    isSyncingRef.current = true;
-    const toastId = toast.loading(`📡 ตรวจพบข้อมูลออฟไลน์ค้างซิงค์! กำลังอัปโหลด ${currentQueue.length} รายการขึ้นระบบคลาวด์...`);
-    const remaining: Transaction[] = [];
-    let successCount = 0;
-    for (let i = 0; i < currentQueue.length; i++) {
-      const tx = currentQueue[i];
+    if (offlineSyncPromise) return offlineSyncPromise;
+    const cooldownUntil = Math.max(lastQuotaExhaustedRef.current, offlineSyncCooldownUntil);
+    if (Date.now() <= cooldownUntil) return;
+
+    // Assign the shared promise before the first await so every mounted hook
+    // instance immediately joins the same sync operation.
+    offlineSyncPromise = (async () => {
+      let currentQueue: Transaction[] = [];
       try {
-        const { id, hasPendingWrites, ...cleanTx } = tx;
-        const cleanedData = removeUndefinedFields({ ...cleanTx, createdAt: cleanTx.createdAt || new Date().toISOString(), createdBy: cleanTx.createdBy || user.uid });
-        const docRef = await addDoc(collection(db, 'transactions'), cleanedData);
-        try {
-          await logAuditEvent({
-            action: 'TRANSACTION_CREATE', category: 'transaction', targetId: docRef.id,
-            targetName: `${cleanTx.detail || cleanTx.category} (฿${cleanTx.amount?.toLocaleString()})`,
-            details: `[ออฟไลน์ซิงก์สำเร็จ] กู้คืนและบันทึกรายการ ${cleanTx.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${cleanTx.category}]`,
-            newData: cleanedData,
-          });
-        } catch (auditError) {
-          console.error('Offline transaction synced but audit log failed:', auditError);
-        }
-        successCount++;
-      } catch (error: any) {
-        console.warn('Error syncing offline transaction to Firebase:', error);
-        if (isRetryableFirestoreError(error)) {
-          remaining.push(tx);
-          remaining.push(...currentQueue.slice(i + 1));
-          lastQuotaExhaustedRef.current = Date.now() + (error?.code === 'resource-exhausted' ? 5 * 60 * 1000 : 30 * 1000);
-          break;
-        }
-        console.error('Permanent Firestore error while syncing offline transaction:', error);
-        toast.error('ไม่สามารถซิงค์ออเดอร์ออฟไลน์ได้ เนื่องจากสิทธิ์หรือข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่');
-        remaining.push(tx);
+        const saved = localStorage.getItem('offline_transactions_queue');
+        currentQueue = saved ? JSON.parse(saved) : [];
+      } catch (e) {
+        console.error('Error reading offline queue for sync:', e);
+        return;
       }
-    }
-    try {
-      localStorage.setItem('offline_transactions_queue', JSON.stringify(remaining));
-      setOfflineQueue(remaining);
-    } catch (e) {
-      console.error('Error saving updated queue to localStorage:', e);
-    }
-    isSyncingRef.current = false;
-    if (successCount > 0) toast.success(`⚡ ซิงค์ข้อมูลธุรกรรมออฟไลน์สำเร็จ ${successCount} รายการเรียบร้อยแล้ว!`, { id: toastId });
-    else toast.dismiss(toastId);
+      if (currentQueue.length === 0) return;
+
+      isSyncingRef.current = true;
+      const toastId = 'offline-queue-sync';
+      toast.loading(`📡 ตรวจพบข้อมูลออฟไลน์ค้างซิงค์! กำลังอัปโหลด ${currentQueue.length} รายการขึ้นระบบคลาวด์...`, { id: toastId });
+      const remaining: Transaction[] = [];
+      let successCount = 0;
+
+      try {
+        for (let i = 0; i < currentQueue.length; i++) {
+          const tx = currentQueue[i];
+          try {
+            const { id, hasPendingWrites, ...cleanTx } = tx;
+            const cleanedData = removeUndefinedFields({ ...cleanTx, createdAt: cleanTx.createdAt || new Date().toISOString(), createdBy: cleanTx.createdBy || user.uid });
+            const docRef = await addDoc(collection(db, 'transactions'), cleanedData);
+            try {
+              await logAuditEvent({
+                action: 'TRANSACTION_CREATE', category: 'transaction', targetId: docRef.id,
+                targetName: `${cleanTx.detail || cleanTx.category} (฿${cleanTx.amount?.toLocaleString()})`,
+                details: `[ออฟไลน์ซิงก์สำเร็จ] กู้คืนและบันทึกรายการ ${cleanTx.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${cleanTx.category}]`,
+                newData: cleanedData,
+              });
+            } catch (auditError) {
+              console.error('Offline transaction synced but audit log failed:', auditError);
+            }
+            successCount++;
+          } catch (error: any) {
+            console.warn('Error syncing offline transaction to Firebase:', error);
+            if (isRetryableFirestoreError(error)) {
+              remaining.push(tx);
+              remaining.push(...currentQueue.slice(i + 1));
+              const retryDelay = error?.code === 'resource-exhausted' ? 5 * 60 * 1000 : 30 * 1000;
+              lastQuotaExhaustedRef.current = Date.now() + retryDelay;
+              offlineSyncCooldownUntil = Date.now() + retryDelay;
+              break;
+            }
+            console.error('Permanent Firestore error while syncing offline transaction:', error);
+            toast.error('ไม่สามารถซิงค์ออเดอร์ออฟไลน์ได้ เนื่องจากสิทธิ์หรือข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่', { id: 'offline-queue-sync-error' });
+            remaining.push(tx);
+          }
+        }
+
+        try {
+          localStorage.setItem('offline_transactions_queue', JSON.stringify(remaining));
+          setOfflineQueue(remaining);
+        } catch (e) {
+          console.error('Error saving updated queue to localStorage:', e);
+        }
+
+        if (successCount > 0) {
+          toast.success(`⚡ ซิงค์ข้อมูลธุรกรรมออฟไลน์สำเร็จ ${successCount} รายการเรียบร้อยแล้ว!`, { id: toastId });
+        } else if (remaining.length === 0) {
+          toast.dismiss(toastId);
+        } else if (remaining.length > 0 && offlineSyncCooldownUntil <= Date.now()) {
+          toast.dismiss(toastId);
+        } else {
+          toast.error('การซิงค์ถูกพักชั่วคราวเพื่อป้องกันการส่งซ้ำ กรุณาระบบลองใหม่อัตโนมัติ', { id: toastId, duration: 3500 });
+        }
+      } finally {
+        isSyncingRef.current = false;
+      }
+    })().finally(() => {
+      offlineSyncPromise = null;
+    });
+
+    return offlineSyncPromise;
   };
 
   useEffect(() => {
-    if (isOnline && user && offlineQueue.length > 0 && Date.now() > lastQuotaExhaustedRef.current) void syncOfflineQueue();
+    if (isOnline && user && offlineQueue.length > 0 && Date.now() > Math.max(lastQuotaExhaustedRef.current, offlineSyncCooldownUntil)) {
+      void syncOfflineQueue();
+    }
   }, [isOnline, user, offlineQueue.length]);
 
   const addTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt' | 'createdBy'>) => {
@@ -155,7 +192,7 @@ export function useTransactions() {
         await logAuditEvent({
           action: 'TRANSACTION_CREATE', category: 'transaction', targetId: docRef.id,
           targetName: `${transaction.detail || transaction.category} (฿${transaction.amount?.toLocaleString()})`,
-          details: `สร้างรายการ ${transaction.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${transaction.category}] รายละเอียด: "${transaction.detail || '-'}" จำนวน ฿${transaction.amount?.toLocaleString()}`,
+          details: `สร้างรายการ ${transaction.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${transaction.category}] รายละเอียด: \"${transaction.detail || '-'}\" จำนวน ฿${transaction.amount?.toLocaleString()}`,
           newData: cleanedData,
         });
       } catch (auditError) {
@@ -174,7 +211,7 @@ export function useTransactions() {
     if (id.startsWith('offline_queued_')) {
       const remaining = offlineQueue.filter(t => t.id !== id);
       setOfflineQueue(remaining);
-      try { localStorage.setItem('offline_transactions_queue', JSON.stringify(remaining)); } catch (e) { console.error('Failed to update localStorage queue:', e); }
+      try { localStorage.setItem('offline_transactions_queue', JSON.stringify(remaining)); } catch (e) { console.error('Failed to update localStorage offline queue:', e); }
       toast.success('ลบรายการที่ค้างคิวออฟไลน์เรียบร้อยแล้ว');
       return;
     }
@@ -184,7 +221,7 @@ export function useTransactions() {
       await logAuditEvent({
         action: 'TRANSACTION_DELETE', category: 'transaction', targetId: id,
         targetName: existingTx ? `${existingTx.detail || existingTx.category} (฿${existingTx.amount?.toLocaleString()})` : id,
-        details: `ลบรายการธุรกรรม ${existingTx?.type === 'income' ? 'รายรับ' : 'รายจ่าย'}: "${existingTx?.detail || existingTx?.category || id}" ยอดเงิน ฿${existingTx?.amount?.toLocaleString() || 0}`,
+        details: `ลบรายการธุรกรรม ${existingTx?.type === 'income' ? 'รายรับ' : 'รายจ่าย'}: \"${existingTx?.detail || existingTx?.category || id}\" ยอดเงิน ฿${existingTx?.amount?.toLocaleString() || 0}`,
         previousData: existingTx || null,
       });
     } catch (error) {
@@ -207,7 +244,7 @@ export function useTransactions() {
       await logAuditEvent({
         action: 'TRANSACTION_UPDATE', category: 'transaction', targetId: id,
         targetName: existingTx ? `${existingTx.detail || existingTx.category} (฿${existingTx.amount?.toLocaleString()})` : id,
-        details: `แก้ไขข้อมูลรายการธุรกรรม "${existingTx?.detail || existingTx?.category || id}"`,
+        details: `แก้ไขข้อมูลรายการธุรกรรม \"${existingTx?.detail || existingTx?.category || id}\"`,
         previousData: existingTx || null, newData: updates,
       });
     } catch (error) {
@@ -224,7 +261,7 @@ export function useTransactions() {
       await logAuditEvent({
         action: 'TRANSACTION_RESTORE', category: 'transaction', targetId: id,
         targetName: `${data.detail || data.category} (฿${data.amount?.toLocaleString()})`,
-        details: `กู้คืนรายการธุรกรรมที่ถูกลบไปแล้ว: "${data.detail || data.category}" ยอดเงิน ฿${data.amount?.toLocaleString()}`,
+        details: `กู้คืนรายการธุรกรรมที่ถูกลบไปแล้ว: \"${data.detail || data.category}\" ยอดเงิน ฿${data.amount?.toLocaleString()}`,
         newData: data,
       });
     } catch (error) {
