@@ -29,6 +29,12 @@ function prepareUpdateData(updates: Record<string, any>): Record<string, any> {
   return cleaned;
 }
 
+function isRetryableFirestoreError(error: any): boolean {
+  const code = String(error?.code || '').replace(/^firestore\//, '');
+  return ['unavailable', 'deadline-exceeded', 'aborted', 'internal', 'resource-exhausted'].includes(code)
+    || /network|offline|failed to fetch|quota|temporarily unavailable/i.test(String(error?.message || ''));
+}
+
 export function useTransactions() {
   const [firestoreTransactions, setFirestoreTransactions] = useState<Transaction[]>([]);
   const [offlineQueue, setOfflineQueue] = useState<Transaction[]>(() => {
@@ -91,21 +97,28 @@ export function useTransactions() {
         const { id, hasPendingWrites, ...cleanTx } = tx;
         const cleanedData = removeUndefinedFields({ ...cleanTx, createdAt: cleanTx.createdAt || new Date().toISOString(), createdBy: cleanTx.createdBy || user.uid });
         const docRef = await addDoc(collection(db, 'transactions'), cleanedData);
-        await logAuditEvent({
-          action: 'TRANSACTION_CREATE', category: 'transaction', targetId: docRef.id,
-          targetName: `${cleanTx.detail || cleanTx.category} (฿${cleanTx.amount?.toLocaleString()})`,
-          details: `[ออฟไลน์ซิงก์สำเร็จ] กู้คืนและบันทึกรายการ ${cleanTx.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${cleanTx.category}]`,
-          newData: cleanedData,
-        });
+        try {
+          await logAuditEvent({
+            action: 'TRANSACTION_CREATE', category: 'transaction', targetId: docRef.id,
+            targetName: `${cleanTx.detail || cleanTx.category} (฿${cleanTx.amount?.toLocaleString()})`,
+            details: `[ออฟไลน์ซิงก์สำเร็จ] กู้คืนและบันทึกรายการ ${cleanTx.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${cleanTx.category}]`,
+            newData: cleanedData,
+          });
+        } catch (auditError) {
+          console.error('Offline transaction synced but audit log failed:', auditError);
+        }
         successCount++;
       } catch (error: any) {
         console.warn('Error syncing offline transaction to Firebase:', error);
-        remaining.push(tx);
-        if (error?.code === 'resource-exhausted' || error?.message?.includes('quota') || error?.message?.includes('Quota') || error?.message?.includes('exhausted')) {
+        if (isRetryableFirestoreError(error)) {
+          remaining.push(tx);
           remaining.push(...currentQueue.slice(i + 1));
-          lastQuotaExhaustedRef.current = Date.now() + 5 * 60 * 1000;
+          lastQuotaExhaustedRef.current = Date.now() + (error?.code === 'resource-exhausted' ? 5 * 60 * 1000 : 30 * 1000);
           break;
         }
+        console.error('Permanent Firestore error while syncing offline transaction:', error);
+        toast.error('ไม่สามารถซิงค์ออเดอร์ออฟไลน์ได้ เนื่องจากสิทธิ์หรือข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่');
+        remaining.push(tx);
       }
     }
     try {
@@ -124,7 +137,7 @@ export function useTransactions() {
   }, [isOnline, user, offlineQueue.length]);
 
   const addTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt' | 'createdBy'>) => {
-    if (!user) return;
+    if (!user) throw new Error('ต้องเข้าสู่ระบบก่อนสร้างรายการ');
     const tempId = `offline_queued_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const cleanedData = removeUndefinedFields({ ...transaction, createdAt: new Date().toISOString(), createdBy: user.uid });
     const queueOffline = () => {
@@ -138,16 +151,22 @@ export function useTransactions() {
     if (!isOnline || dbManager.getActualProvider() === 'local') return queueOffline();
     try {
       const docRef = await addDoc(collection(db, 'transactions'), cleanedData);
-      await logAuditEvent({
-        action: 'TRANSACTION_CREATE', category: 'transaction', targetId: docRef.id,
-        targetName: `${transaction.detail || transaction.category} (฿${transaction.amount?.toLocaleString()})`,
-        details: `สร้างรายการ ${transaction.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${transaction.category}] รายละเอียด: "${transaction.detail || '-'}" จำนวน ฿${transaction.amount?.toLocaleString()}`,
-        newData: cleanedData,
-      });
+      try {
+        await logAuditEvent({
+          action: 'TRANSACTION_CREATE', category: 'transaction', targetId: docRef.id,
+          targetName: `${transaction.detail || transaction.category} (฿${transaction.amount?.toLocaleString()})`,
+          details: `สร้างรายการ ${transaction.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${transaction.category}] รายละเอียด: "${transaction.detail || '-'}" จำนวน ฿${transaction.amount?.toLocaleString()}`,
+          newData: cleanedData,
+        });
+      } catch (auditError) {
+        console.error('Transaction created but audit log failed:', auditError);
+      }
       return docRef.id;
-    } catch (error) {
-      console.error('Error adding transaction to Firestore, fallback to local queue:', error);
-      return queueOffline();
+    } catch (error: any) {
+      console.error('Error adding transaction to Firestore:', error);
+      if (isRetryableFirestoreError(error)) return queueOffline();
+      handleFirestoreError(error, OperationType.CREATE, 'transactions');
+      throw error;
     }
   };
 
