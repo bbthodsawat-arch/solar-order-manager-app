@@ -35,9 +35,8 @@ function isRetryableFirestoreError(error: any): boolean {
     || /network|offline|failed to fetch|quota|temporarily unavailable/i.test(String(error?.message || ''));
 }
 
-// A single page can mount useTransactions from several screens/widgets at once.
-// Keep the offline uploader process-wide so multiple hook instances cannot upload
-// the same queue item concurrently and create duplicate Firestore transactions.
+// Process-wide lock: several dashboard widgets can mount this hook at once.
+// Only one instance may upload the shared offline queue.
 let offlineSyncPromise: Promise<void> | null = null;
 let offlineSyncCooldownUntil = 0;
 
@@ -65,7 +64,7 @@ export function useTransactions() {
       return;
     }
     const q = query(collection(db, 'transactions'), orderBy('date', 'desc'));
-    const unsubscribe = onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
+    const unsubscribe = onSnapshot(q, { includeMetadataChanges: false }, (snapshot) => {
       const txs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), hasPendingWrites: doc.metadata.hasPendingWrites })) as Transaction[];
       setFirestoreTransactions(txs);
       setLoading(false);
@@ -88,8 +87,6 @@ export function useTransactions() {
     const cooldownUntil = Math.max(lastQuotaExhaustedRef.current, offlineSyncCooldownUntil);
     if (Date.now() <= cooldownUntil) return;
 
-    // Assign the shared promise before the first await so every mounted hook
-    // instance immediately joins the same sync operation.
     offlineSyncPromise = (async () => {
       let currentQueue: Transaction[] = [];
       try {
@@ -102,21 +99,27 @@ export function useTransactions() {
       if (currentQueue.length === 0) return;
 
       isSyncingRef.current = true;
-      const toastId = 'offline-queue-sync';
-      toast.loading(`📡 ตรวจพบข้อมูลออฟไลน์ค้างซิงค์! กำลังอัปโหลด ${currentQueue.length} รายการขึ้นระบบคลาวด์...`, { id: toastId });
       const remaining: Transaction[] = [];
-      let successCount = 0;
 
+      // Automatic background sync is intentionally silent. The previous
+      // implementation showed a toast here; multiple mounted hook instances
+      // could make the same notification visually stack on mobile.
       try {
         for (let i = 0; i < currentQueue.length; i++) {
           const tx = currentQueue[i];
           try {
             const { id, hasPendingWrites, ...cleanTx } = tx;
-            const cleanedData = removeUndefinedFields({ ...cleanTx, createdAt: cleanTx.createdAt || new Date().toISOString(), createdBy: cleanTx.createdBy || user.uid });
+            const cleanedData = removeUndefinedFields({
+              ...cleanTx,
+              createdAt: cleanTx.createdAt || new Date().toISOString(),
+              createdBy: cleanTx.createdBy || user.uid,
+            });
             const docRef = await addDoc(collection(db, 'transactions'), cleanedData);
             try {
               await logAuditEvent({
-                action: 'TRANSACTION_CREATE', category: 'transaction', targetId: docRef.id,
+                action: 'TRANSACTION_CREATE',
+                category: 'transaction',
+                targetId: docRef.id,
                 targetName: `${cleanTx.detail || cleanTx.category} (฿${cleanTx.amount?.toLocaleString()})`,
                 details: `[ออฟไลน์ซิงก์สำเร็จ] กู้คืนและบันทึกรายการ ${cleanTx.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${cleanTx.category}]`,
                 newData: cleanedData,
@@ -124,39 +127,25 @@ export function useTransactions() {
             } catch (auditError) {
               console.error('Offline transaction synced but audit log failed:', auditError);
             }
-            successCount++;
           } catch (error: any) {
             console.warn('Error syncing offline transaction to Firebase:', error);
+            remaining.push(tx, ...currentQueue.slice(i + 1));
             if (isRetryableFirestoreError(error)) {
-              remaining.push(tx);
-              remaining.push(...currentQueue.slice(i + 1));
               const retryDelay = error?.code === 'resource-exhausted' ? 5 * 60 * 1000 : 30 * 1000;
               lastQuotaExhaustedRef.current = Date.now() + retryDelay;
               offlineSyncCooldownUntil = Date.now() + retryDelay;
-              break;
+            } else {
+              toast.error('ไม่สามารถซิงค์ออเดอร์ออฟไลน์ได้ เนื่องจากสิทธิ์หรือข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่', { id: 'offline-queue-sync-error' });
             }
-            console.error('Permanent Firestore error while syncing offline transaction:', error);
-            toast.error('ไม่สามารถซิงค์ออเดอร์ออฟไลน์ได้ เนื่องจากสิทธิ์หรือข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่', { id: 'offline-queue-sync-error' });
-            remaining.push(tx);
+            break;
           }
         }
 
-        try {
-          localStorage.setItem('offline_transactions_queue', JSON.stringify(remaining));
-          setOfflineQueue(remaining);
-        } catch (e) {
-          console.error('Error saving updated queue to localStorage:', e);
-        }
-
-        if (successCount > 0) {
-          toast.success(`⚡ ซิงค์ข้อมูลธุรกรรมออฟไลน์สำเร็จ ${successCount} รายการเรียบร้อยแล้ว!`, { id: toastId });
-        } else if (remaining.length === 0) {
-          toast.dismiss(toastId);
-        } else if (remaining.length > 0 && offlineSyncCooldownUntil <= Date.now()) {
-          toast.dismiss(toastId);
-        } else {
-          toast.error('การซิงค์ถูกพักชั่วคราวเพื่อป้องกันการส่งซ้ำ กรุณาระบบลองใหม่อัตโนมัติ', { id: toastId, duration: 3500 });
-        }
+        localStorage.setItem('offline_transactions_queue', JSON.stringify(remaining));
+        setOfflineQueue(remaining);
+        window.dispatchEvent(new Event('solar_offline_queue_changed'));
+      } catch (error) {
+        console.error('Offline queue persistence failed:', error);
       } finally {
         isSyncingRef.current = false;
       }
@@ -182,7 +171,8 @@ export function useTransactions() {
       const updatedQueue = [...offlineQueue, offlineTx];
       setOfflineQueue(updatedQueue);
       try { localStorage.setItem('offline_transactions_queue', JSON.stringify(updatedQueue)); } catch (e) { console.error('Failed to write transaction queue to localStorage:', e); }
-      toast.success('💾 จัดเก็บออฟไลน์เรียบร้อย! รายการจะซิงค์ขึ้นระบบคลาวด์อัตโนมัติเมื่ออินเทอร์เน็ตพร้อมใช้งาน', { icon: '📡', duration: 5000 });
+      window.dispatchEvent(new Event('solar_offline_queue_changed'));
+      toast.success('💾 จัดเก็บออฟไลน์เรียบร้อย! รายการจะซิงค์ขึ้นระบบคลาวด์อัตโนมัติเมื่ออินเทอร์เน็ตพร้อมใช้งาน', { id: 'offline-queued-success', icon: '📡', duration: 5000 });
       return tempId;
     };
     if (!isOnline || dbManager.getActualProvider() === 'local') return queueOffline();
@@ -212,6 +202,7 @@ export function useTransactions() {
       const remaining = offlineQueue.filter(t => t.id !== id);
       setOfflineQueue(remaining);
       try { localStorage.setItem('offline_transactions_queue', JSON.stringify(remaining)); } catch (e) { console.error('Failed to update localStorage offline queue:', e); }
+      window.dispatchEvent(new Event('solar_offline_queue_changed'));
       toast.success('ลบรายการที่ค้างคิวออฟไลน์เรียบร้อยแล้ว');
       return;
     }
@@ -235,6 +226,7 @@ export function useTransactions() {
       const updated = offlineQueue.map(t => t.id === id ? { ...t, ...updates } : t);
       setOfflineQueue(updated);
       try { localStorage.setItem('offline_transactions_queue', JSON.stringify(updated)); } catch (e) { console.error('Failed to update localStorage queue:', e); }
+      window.dispatchEvent(new Event('solar_offline_queue_changed'));
       toast.success('แก้ไขรายการในคิวออฟไลน์เรียบร้อยแล้ว');
       return;
     }
@@ -278,6 +270,7 @@ export function useTransactions() {
       await batch.commit();
       setOfflineQueue([]);
       try { localStorage.removeItem('offline_transactions_queue'); } catch (e) { console.error('Failed to clear localStorage offline queue:', e); }
+      window.dispatchEvent(new Event('solar_offline_queue_changed'));
       await logAuditEvent({ action: 'TRANSACTION_BATCH_DELETE', category: 'transaction', targetId: 'ALL', targetName: `ล้างข้อมูลธุรกรรมทั้งหมด ${count} รายการ`, details: `ลบรายการธุรกรรมทั้งหมดในระบบจำนวน ${count} รายการ (รวมถึงออฟไลน์คิว)` });
     } catch (error) {
       console.error('Error deleting all transactions:', error);
