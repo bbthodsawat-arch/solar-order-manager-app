@@ -22,7 +22,6 @@ import DashboardCardCustomizerTab from '../components/dashboard/DashboardCardCus
 import WidgetGallery from '../components/dashboard/WidgetGallery';
 import { BottomNavSettingsTab } from '../components/navigation/BottomNavSettingsTab';
 import DatabaseManager from '../components/DatabaseManager';
-import SyncHealthDashboard from '../components/SyncHealthDashboard';
 import DatabaseBackupSettings from '../components/DatabaseBackupSettings';
 import { SystemResetSettings } from '../components/SystemResetSettings';
 import { DashboardWidgetConfig } from '../types';
@@ -128,7 +127,7 @@ export default function CommandCenter({ onNavigateToUsers, onNavigateToAudit, on
               {active==='automation'&&<div className="space-y-5"><DailyReminderSettings/><RecurringTransactionsManager/></div>}
               {active==='security'&&<div className="space-y-5"><SecurityPINSettings onLockApp={onLockApp||(()=>{})}/><ActionCard icon={Users} title="จัดการผู้ใช้งานและสิทธิ์" description="รวมคำสั่ง Admin/Staff ไว้ที่หน้าจัดการผู้ใช้เดียว" onClick={onNavigateToUsers} disabled={!onNavigateToUsers}/><ActionCard icon={ShieldCheck} title="Audit Log" description="ตรวจสอบประวัติการเปลี่ยนแปลงและกิจกรรมสำคัญของระบบ" onClick={onNavigateToAudit} disabled={!onNavigateToAudit}/></div>}
               {active==='login'&&<LoginControlCenter/>}
-              {active==='data'&&<div className="space-y-5"><DatabaseManager/><SyncHealthDashboard/><DatabaseBackupSettings/></div>}
+              {active==='data'&&<div className="space-y-5"><DatabaseManager/><DatabaseBackupSettings/></div>}
               {active==='account'&&<AccountCard user={user} appUser={appUser} isAdmin={isAdmin}/>} 
               {active==='system'&&<SystemResetSettings/>}
             </motion.div></AnimatePresence></main>

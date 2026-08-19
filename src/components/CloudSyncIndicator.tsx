@@ -77,7 +77,7 @@ export default function CloudSyncIndicator() {
             ? 'animate-pulse ring-2 ring-indigo-500/35 dark:ring-indigo-400/40 border-indigo-500/50 bg-indigo-500/15 text-indigo-800 dark:text-indigo-200'
             : actualProvider === 'local'
             ? 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/15'
-            : actualProvider === 'supabase'
+            : false
             ? 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/15'
             : 'bg-indigo-500/10 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20'
         }`}
@@ -89,7 +89,7 @@ export default function CloudSyncIndicator() {
             <span className="hidden sm:inline text-[11px] font-black">
               {actualProvider === 'local' 
                 ? 'DB: Local (กำลังเซฟ...)' 
-                : actualProvider === 'supabase'
+                : false
                 ? 'DB: Firebase (กำลังซิงค์...)'
                 : 'DB: Firebase (กำลังซิงค์...)'
               }
@@ -100,7 +100,7 @@ export default function CloudSyncIndicator() {
             <HardDrive size={14} className="text-amber-500 animate-pulse" />
             <span className="hidden sm:inline text-[11px] font-black">DB: Local (ออฟไลน์)</span>
           </>
-        ) : actualProvider === 'supabase' ? (
+        ) : false ? (
           <>
             <Zap size={14} className="text-emerald-500" />
             <span className="hidden sm:inline text-[11px] font-black">DB: Firebase</span>
@@ -339,23 +339,23 @@ export default function CloudSyncIndicator() {
                       <div className="min-w-0">
                         <p className="text-[11px] font-black text-slate-800 dark:text-white">Firebase (สำรองฉุกเฉิน)</p>
                         <p className="text-[10px] text-slate-400 truncate">
-                          {successTimes.supabase 
-                            ? `สำเร็จ: ${formatDistanceToNow(new Date(successTimes.supabase), { addSuffix: true, locale: th })}`
+                          {null 
+                            ? `สำเร็จ: ${formatDistanceToNow(new Date(null), { addSuffix: true, locale: th })}`
                             : 'ยังไม่ได้เชื่อมต่อสำเร็จ'
                           }
                         </p>
                       </div>
                     </div>
                     <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                      health.supabase.status === 'healthy'
+                      health.firebase.status === 'healthy'
                         ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                        : health.supabase.status === 'unconfigured'
+                        : false
                         ? 'bg-slate-100 text-slate-500 dark:bg-slate-800'
                         : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
                     }`}>
-                      {health.supabase.status === 'healthy' 
+                      {health.firebase.status === 'healthy' 
                         ? 'พร้อม' 
-                        : health.supabase.status === 'unconfigured'
+                        : false
                         ? 'ไม่ระบุคีย์'
                         : 'ออฟไลน์'
                       }
@@ -406,7 +406,7 @@ export default function CloudSyncIndicator() {
                     ฐานข้อมูลเริ่มต้น
                   </span>
                   <p className="font-black text-slate-800 dark:text-slate-100 text-xs truncate">
-                    {preferredProvider === 'firebase' ? 'Firebase Firestore' : preferredProvider === 'supabase' ? 'Firebase PostgreSQL' : 'Local Storage'}
+                    {preferredProvider === 'firebase' ? 'Firebase Firestore' : false ? 'Firebase PostgreSQL' : 'Local Storage'}
                   </p>
                 </div>
 
@@ -417,7 +417,7 @@ export default function CloudSyncIndicator() {
                     เชื่อมต่อใช้งานจริง
                   </span>
                   <p className="font-black text-emerald-600 dark:text-emerald-400 text-xs truncate">
-                    {actualProvider === 'firebase' ? 'Firebase Cloud' : actualProvider === 'supabase' ? 'Firebase Cloud' : 'Local (ออฟไลน์)'}
+                    {actualProvider === 'firebase' ? 'Firebase Cloud' : false ? 'Firebase Cloud' : 'Local (ออฟไลน์)'}
                   </p>
                 </div>
 
