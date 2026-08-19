@@ -1,10 +1,7 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, signOut as firebaseSignOut, type User } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, signOut as firebaseSignOut, type User, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-// Firebase Web configuration is public client configuration. Environment variables
-// remain the preferred deployment override; the known production Firebase project
-// is kept as a fallback so a missing Vercel VITE_* configuration cannot disable login.
 const productionFirebaseConfig = {
   apiKey: 'AIzaSyCug9CdKSMg3ki-wufXLv3oyThImjyc9fg',
   authDomain: 'gen-lang-client-0307844434.firebaseapp.com',
@@ -27,14 +24,15 @@ const firebaseConfig = {
 
 const isConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId);
 export const firebaseApp: FirebaseApp | null = isConfigured ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null;
-
-// Keep Firebase Auth initialization synchronous and minimal during application boot.
-// initializeAuth() can touch browser persistence/IndexedDB during module evaluation;
-// on mobile browsers that can stall the entire React bootstrap before the loading
-// timeout has a chance to render. getAuth() uses Firebase's safe default initialization
-// and lets the app mount immediately.
 export const auth = firebaseApp ? getAuth(firebaseApp) : null;
 export const db = firebaseApp ? getFirestore(firebaseApp) : null;
+
+if (auth) {
+  void setPersistence(auth, browserSessionPersistence).catch((error) => {
+    console.warn('[Firebase auth persistence] session persistence unavailable:', error);
+  });
+}
+
 export function isFirebaseConfigured(): boolean { return Boolean(firebaseApp && auth && db); }
 
 export async function signInWithGoogle() {
@@ -42,6 +40,7 @@ export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   try {
+    await setPersistence(auth, browserSessionPersistence);
     const result = await signInWithPopup(auth, provider);
     return { user: result.user, error: null };
   } catch (error: any) {
@@ -51,7 +50,7 @@ export async function signInWithGoogle() {
 
 export async function signInWithPassword(email: string, pass: string) {
   if (!auth) return { user: null, error: new Error('Firebase is not configured') };
-  try { const result = await signInWithEmailAndPassword(auth, email, pass); return { user: result.user, error: null }; }
+  try { await setPersistence(auth, browserSessionPersistence); const result = await signInWithEmailAndPassword(auth, email, pass); return { user: result.user, error: null }; }
   catch (error) { return { user: null, error }; }
 }
 export async function sendUserPasswordResetEmail(email: string) {
@@ -63,6 +62,7 @@ export const sendUserPasswordResetEmailCompat = sendUserPasswordResetEmail;
 export const sendUserPasswordResetEmailLegacy = sendUserPasswordResetEmail;
 export async function createNewUserWithPassword(email: string, pass: string): Promise<string> {
   if (!auth) throw new Error('Firebase is not configured');
+  await setPersistence(auth, browserSessionPersistence);
   const result = await createUserWithEmailAndPassword(auth, email, pass);
   return result.user.uid;
 }
