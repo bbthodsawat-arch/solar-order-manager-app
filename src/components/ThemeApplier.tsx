@@ -3,21 +3,42 @@ import { useDesignSystem } from '../hooks/useDesignSystem';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { FONT_TOKENS, RADIUS_TOKENS } from '../lib/designSystemPresets';
 
+const LIGHT_ONLY_STYLE_ID = 'som-light-only-theme-guard';
+
 export const ThemeApplier: React.FC = () => {
   const { designConfig } = useDesignSystem();
   const { displayDensity } = useAppConfig();
 
   useEffect(() => {
     const root = document.documentElement;
-    
+
+    // SOM is Light Mode only. Never inherit or persist a device dark preference.
+    root.classList.remove('dark');
+    root.style.colorScheme = 'light';
+    localStorage.setItem('theme', 'light');
+
+    // Hide legacy Dark Mode controls while keeping the existing theme settings
+    // component API backwards-compatible. The ten design presets remain available
+    // as light UI palettes and styles.
+    if (!document.getElementById(LIGHT_ONLY_STYLE_ID)) {
+      const style = document.createElement('style');
+      style.id = LIGHT_ONLY_STYLE_ID;
+      style.textContent = `
+        html.light-only button:has(svg.lucide-moon) { display: none !important; }
+        html.light-only .dark { color-scheme: light !important; }
+      `;
+      document.head.appendChild(style);
+    }
+    root.classList.add('light-only');
+
     // 1. Primary Colors
     let hex = designConfig.primaryColor || '#d97706';
     if (!/^#[0-9A-Fa-f]{6}$/i.test(hex)) hex = '#d97706';
-    
+
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
-    
+
     root.style.setProperty('--brand-primary', hex);
     root.style.setProperty('--brand-primary-soft', `rgba(${r}, ${g}, ${b}, 0.12)`);
     root.style.setProperty('--brand-primary-border', `rgba(${r}, ${g}, ${b}, 0.25)`);
@@ -52,15 +73,11 @@ export const ThemeApplier: React.FC = () => {
 
     // 5. Dynamic Radius Pixel Variable
     const radiusDef = RADIUS_TOKENS.find(r => r.id === designConfig.radius);
-    if (radiusDef) {
-      root.style.setProperty('--sys-radius-card', radiusDef.px);
-    }
+    if (radiusDef) root.style.setProperty('--sys-radius-card', radiusDef.px);
 
     // 6. Dynamic Font Family Variable
     const fontDef = FONT_TOKENS.find(f => f.id === designConfig.font);
-    if (fontDef) {
-      root.style.setProperty('--sys-font-family', fontDef.cssFont);
-    }
+    if (fontDef) root.style.setProperty('--sys-font-family', fontDef.cssFont);
 
     // 7. Density Compact class compatibility
     if (designConfig.density === 'compact' || displayDensity === 'compact') {
@@ -68,7 +85,6 @@ export const ThemeApplier: React.FC = () => {
     } else {
       root.classList.remove('density-compact');
     }
-
   }, [designConfig, displayDensity]);
 
   return null;
