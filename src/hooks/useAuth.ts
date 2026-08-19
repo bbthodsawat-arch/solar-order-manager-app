@@ -8,6 +8,23 @@ import { doc, getDoc, setDoc, serverTimestamp } from '../lib/firestore-compat';
 const OWNER_EMAIL = 'b.b.thodsawat@gmail.com';
 const AUTH_BOOT_TIMEOUT_MS = 5000;
 
+const buildFallbackProfile = (currentUser: User): AppUser => {
+  const now = new Date().toISOString();
+  const isOwner = currentUser.email?.toLowerCase() === OWNER_EMAIL;
+  const role: UserRole = isOwner ? 'admin' : 'staff';
+  return {
+    uid: currentUser.uid,
+    email: currentUser.email ?? null,
+    displayName: currentUser.displayName ?? null,
+    photoURL: currentUser.photoURL ?? null,
+    role,
+    permissions: isOwner ? DEFAULT_ROLE_PERMISSIONS.admin : DEFAULT_ROLE_PERMISSIONS.staff,
+    status: 'active',
+    createdAt: now,
+    lastLoginAt: now,
+  };
+};
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
@@ -17,13 +34,21 @@ export function useAuth() {
     if (!auth) { setLoading(false); return; }
     let mounted = true;
     let settled = false;
-    const finishLoading = () => { if (!mounted || settled) return; settled = true; setLoading(false); };
+    let currentAuthUser: User | null = null;
+
+    const finishLoading = () => {
+      if (!mounted || settled) return;
+      settled = true;
+      setLoading(false);
+    };
+
+    // Never sign out a valid Firebase session merely because Firestore/profile
+    // hydration is slow. Mobile networks can legitimately take longer than 5s.
     const bootTimeout = window.setTimeout(() => {
-      if (!settled && mounted) {
-        console.warn('[Firebase auth] bootstrap timeout; signing out to fail closed');
-        setAppUser(null);
-        void signOut().finally(finishLoading);
-      }
+      if (!mounted || settled || !currentAuthUser) return;
+      console.warn('[Firebase auth] profile bootstrap timeout; continuing with least-privilege profile');
+      setAppUser(buildFallbackProfile(currentAuthUser));
+      finishLoading();
     }, AUTH_BOOT_TIMEOUT_MS);
 
     const loadProfile = async (currentUser: User) => {
@@ -68,36 +93,31 @@ export function useAuth() {
       } catch (error) {
         console.warn('[Firebase profile]', error);
         if (!mounted) return;
-        setAppUser(null);
-        if (!isOwner) {
-          await signOut();
-          finishLoading();
-          return;
-        }
-        setAppUser({
-          uid: currentUser.uid,
-          email: currentUser.email ?? null,
-          displayName: currentUser.displayName ?? null,
-          photoURL: currentUser.photoURL ?? null,
-          role: 'admin',
-          permissions: DEFAULT_ROLE_PERMISSIONS.admin,
-          status: 'active',
-          createdAt: now,
-          lastLoginAt: now,
-        });
+        // A profile read failure must not eject a valid authenticated user.
+        // Keep a least-privilege session and allow the app to remain usable.
+        const fallback = buildFallbackProfile(currentUser);
+        setAppUser(fallback);
         finishLoading();
       }
     };
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (!mounted) return;
+      currentAuthUser = currentUser;
       setUser(currentUser);
       setAppUser(null);
-      if (!currentUser) { finishLoading(); return; }
+      if (!currentUser) {
+        finishLoading();
+        return;
+      }
       void loadProfile(currentUser);
     });
 
-    return () => { mounted = false; window.clearTimeout(bootTimeout); unsubscribe(); };
+    return () => {
+      mounted = false;
+      window.clearTimeout(bootTimeout);
+      unsubscribe();
+    };
   }, []);
 
   return { user, appUser, loading };
