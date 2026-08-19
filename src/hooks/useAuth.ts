@@ -65,19 +65,27 @@ export function useAuth() {
       } catch (error) {
         console.warn('[Firebase profile]', error);
         if (!mounted) return;
-        // Fail closed for non-owner profile failures: do not grant privileged access.
-        const fallbackRole: UserRole = isOwner ? 'admin' : 'staff';
+        // Fail closed for non-owner profile failures: do not grant even temporary UI access.
+        if (!isOwner) {
+          setAppUser(null);
+          await signOut();
+          finishLoading();
+          return;
+        }
+        // The owner is identified by the verified Firebase email and can continue
+        // when the profile document is temporarily unavailable.
         setAppUser({
           uid: currentUser.uid,
           email: currentUser.email ?? null,
           displayName: currentUser.displayName ?? null,
           photoURL: currentUser.photoURL ?? null,
-          role: fallbackRole,
-          permissions: DEFAULT_ROLE_PERMISSIONS[fallbackRole],
+          role: 'admin',
+          permissions: DEFAULT_ROLE_PERMISSIONS.admin,
           status: 'active',
           createdAt: now,
           lastLoginAt: now,
         });
+        finishLoading();
       }
     };
 
