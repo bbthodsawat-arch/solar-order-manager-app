@@ -8,7 +8,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="som-build" content="377e130-auth-fix" />
     <title>ร้านกลางนาโซล่าเซลล์ - บันทึกรายรับ-รายจ่าย</title>
-    <!-- Non-blocking Google Fonts: keep first paint independent of font CDN latency. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -23,6 +22,22 @@
         rel="stylesheet"
       />
     </noscript>
+    <script>
+      // The app no longer uses a Service Worker. Remove any legacy registration/cache
+      // before the app starts so old mobile/custom-tab sessions cannot serve stale UI.
+      (() => {
+        try {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then((registrations) => {
+              registrations.forEach((registration) => { void registration.unregister(); });
+            }).catch(() => {});
+          }
+          if ('caches' in window) {
+            caches.keys().then((names) => Promise.all(names.map((name) => caches.delete(name)))).catch(() => {});
+          }
+        } catch (_) {}
+      })();
+    </script>
     <script>
       // Last-resort client bootstrap guard. A module import can fail before React
       // executes its own startup fallback; never leave the user with a white screen.
