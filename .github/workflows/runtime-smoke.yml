@@ -23,20 +23,23 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - run: npm run lint
-      - run: npm run build
+      - name: TypeScript check
+        run: npm run lint
+      - name: Production build
+        run: npm run build
       - name: Start production server
         run: |
           NODE_ENV=production npm start > /tmp/som-server.log 2>&1 &
           echo $! > /tmp/som-server.pid
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:3000/api/health; then
-              exit 0
+              break
             fi
             sleep 1
           done
-          cat /tmp/som-server.log
-          exit 1
+          curl -fsS http://127.0.0.1:3000/ > /tmp/som-index.html
+          grep -q 'id="root"' /tmp/som-index.html
+          test -s /tmp/som-index.html
       - name: Stop production server
         if: always()
         run: |
