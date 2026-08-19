@@ -23,16 +23,22 @@ jobs:
         run: |
           from pathlib import Path
           for root in (Path('src'), Path('server.ts')):
-            if root.is_file():
-              files = [root]
-            else:
-              files = list(root.rglob('*.ts')) + list(root.rglob('*.tsx'))
+            files = [root] if root.is_file() else list(root.rglob('*.ts')) + list(root.rglob('*.tsx'))
             for path in files:
               text = path.read_text(encoding='utf-8')
               updated = text.replace("../lib/supabase", "../lib/firebaseStore")
               updated = updated.replace("./supabase", "./firebaseStore")
               updated = updated.replace("getSupabase", "getFirebaseStore")
               updated = updated.replace("Supabase", "Firebase")
+              updated = updated.replace("import SyncHealthDashboard from '../components/SyncHealthDashboard';\n", "")
+              updated = updated.replace("<SyncHealthDashboard/>", "")
+              updated = updated.replace("<SyncHealthDashboard />", "")
+              updated = updated.replace("actualProvider === 'supabase'", "false")
+              updated = updated.replace("preferredProvider === 'supabase'", "false")
+              updated = updated.replace("successTimes.supabase", "null")
+              updated = updated.replace("health.supabase", "health.firebase")
+              updated = updated.replace("health.firebase.status === 'unconfigured'", "false")
+              updated = updated.replace("health.firebase.status !== 'unconfigured'", "true")
               if updated != text:
                 path.write_text(updated, encoding='utf-8')
 
@@ -42,17 +48,10 @@ jobs:
           cat > src/lib/firebaseStore.ts <<'EOF'
           import { collection, deleteDoc, doc, getDocs, limit, orderBy, query, setDoc, updateDoc, where } from 'firebase/firestore';
           import { db } from './firebase';
-
           type Row = Record<string, any>;
           type Filter = { field: string; value: any };
-
           class QueryBuilder {
-            private readonly table: string;
-            private filters: Filter[] = [];
-            private limitCount: number | undefined;
-            private orderField: string | undefined;
-            private orderDirection: 'asc' | 'desc' = 'asc';
-            private selected: string | undefined;
+            private readonly table: string; private filters: Filter[] = []; private limitCount?: number; private orderField?: string; private orderDirection: 'asc' | 'desc' = 'asc'; private selected?: string;
             constructor(table: string) { this.table = table; }
             select(columns?: string) { this.selected = columns; return this; }
             eq(field: string, value: any) { this.filters.push({ field, value }); return this; }
@@ -64,27 +63,20 @@ jobs:
             async upsert(payload: Row | Row[], _options?: any) { try { const rows = Array.isArray(payload) ? payload : [payload]; for (const row of rows) { const id = String(row.id ?? crypto.randomUUID()); await setDoc(doc(db, this.table, id), row, { merge: true }); } return { data: payload, error: null }; } catch (error) { return { data: null, error }; } }
             async insert(payload: Row | Row[]) { return this.upsert(payload); }
             async update(payload: Row) { try { const id = this.filters.find(f => f.field === 'id')?.value; if (!id) throw new Error(`Firebase update requires id filter for ${this.table}`); await updateDoc(doc(db, this.table, String(id)), payload); return { data: payload, error: null }; } catch (error) { return { data: null, error }; } }
-            async delete() { try { const result = await this.read(); for (const row of result.data) { if (row.id) await deleteDoc(doc(db, this.table, String(row.id))); } return { data: result.data, error: result.error }; } catch (error) { return { data: null, error }; } }
+            async delete() { try { const result = await this.read(); for (const row of result.data) if (row.id) await deleteDoc(doc(db, this.table, String(row.id))); return { data: result.data, error: result.error }; } catch (error) { return { data: null, error }; } }
             private async read(): Promise<{ data: Row[]; error: any }> { try { const constraints: any[] = []; for (const filter of this.filters) constraints.push(where(filter.field, '==', filter.value)); if (this.orderField) constraints.push(orderBy(this.orderField, this.orderDirection)); if (this.limitCount) constraints.push(limit(this.limitCount)); const snapshot = await getDocs(query(collection(db, this.table), ...constraints)); const data = snapshot.docs.map(item => ({ id: item.id, ...item.data() })); return { data: this.selected ? data.map(row => { const result: Row = { id: row.id }; for (const key of this.selected!.split(',').map(k => k.trim())) if (key) result[key] = row[key]; return result; }) : data, error: null }; } catch (error) { return { data: [], error }; } }
           }
-
-          export function getFirebaseStore() {
-            return { from: (table: string) => new QueryBuilder(table) };
-          }
+          export function getFirebaseStore() { return { from: (table: string) => new QueryBuilder(table) }; }
           EOF
 
       - name: Remove legacy Supabase files
         run: |
-          rm -f src/lib/supabase.ts
-          rm -f src/components/SupabaseConfigManager.tsx
-          rm -f supabase/config.toml
+          rm -f src/lib/supabase.ts src/components/SupabaseConfigManager.tsx supabase/config.toml
           rmdir supabase 2>/dev/null || true
 
       - name: Verify no Supabase references remain
         run: |
-          if grep -Rni --exclude-dir=node_modules --exclude-dir=.git --exclude='firebase-only-cleanup.yml' 'supabase' src package.json package-lock.json 2>/dev/null; then
-            echo 'Supabase reference remains'; exit 1
-          fi
+          if grep -Rni --exclude-dir=node_modules --exclude-dir=.git --exclude='firebase-only-cleanup.yml' 'supabase' src package.json package-lock.json 2>/dev/null; then echo 'Supabase reference remains'; exit 1; fi
 
       - name: Commit cleanup
         run: |
