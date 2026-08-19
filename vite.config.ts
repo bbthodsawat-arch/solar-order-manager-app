@@ -24,6 +24,13 @@ export default defineConfig({
     // trigger browser TDZ errors such as "Cannot access 'A' before initialization".
     // Correctness is more important than the old manual split; Vite/Rollup can
     // still split dynamic imports safely without forcing module execution order.
+    rollupOptions: {
+      output: {
+        // Stable entry URL lets the HTML bootstrap wait for legacy Service Worker
+        // cleanup before requesting the React module. Dynamic chunks remain hashed.
+        entryFileNames: 'assets/app.js',
+      },
+    },
   },
   server: {
     hmr: process.env.DISABLE_HMR !== 'true',
