@@ -37,9 +37,11 @@ service cloud.firestore {
       );
     }
 
-    // User profiles: only the owner manages other accounts. A user may update
-    // only harmless self-profile fields and can never change their own role,
-    // permissions, status, or authentication metadata.
+    function validLoginPolicy() {
+      return request.resource.data.get('allow_google_login', true) == true
+        || request.resource.data.get('allow_password_login', true) == true;
+    }
+
     match /users/{userId} {
       allow read: if isSelf(userId) || isOwner();
       allow create: if isSelf(userId) || isOwner();
@@ -52,7 +54,6 @@ service cloud.firestore {
       allow delete: if isOwner();
     }
 
-    // Business records are protected by the user's role/permission profile.
     match /transactions/{documentId} {
       allow read: if permission('canViewDashboard') || permission('canViewReports');
       allow create: if permission('canAddTransactions');
@@ -88,9 +89,12 @@ service cloud.firestore {
 
     // Login policy is global security configuration. It is readable after
     // authentication and writable only by users with security-management access.
+    // The rules also guarantee that the Command Center can never save a policy
+    // that disables every login method and locks all users out.
     match /login_settings/{documentId} {
       allow read: if signedIn();
-      allow create, update, delete: if permission('canManageSecurity');
+      allow create, update: if permission('canManageSecurity') && validLoginPolicy();
+      allow delete: if permission('canManageSecurity');
     }
 
     match /__healthcheck/{documentId} {
@@ -98,8 +102,6 @@ service cloud.firestore {
       allow write: if permission('canManageDatabase');
     }
 
-    // Audit records are append-only for the application and readable by
-    // authorized security/audit users. They cannot be edited or deleted by staff.
     match /audit_logs/{documentId} {
       allow read: if permission('canViewAuditLogs');
       allow create: if activeUser();
