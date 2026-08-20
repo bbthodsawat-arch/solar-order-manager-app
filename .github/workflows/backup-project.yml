@@ -1,0 +1,34 @@
+name: Full Project Backup
+on:
+  push:
+    branches: ["backup/full-project-20260820"]
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout complete repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+      - name: Create source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-files -z | tar --null -T - -czf solar-order-manager-app-main-2026-08-20.tar.gz
+          unzip -v /dev/null >/dev/null 2>&1 || true
+          zip -q -r solar-order-manager-app-main-2026-08-20.zip . -x '.git/*'
+          sha256sum solar-order-manager-app-main-2026-08-20.zip solar-order-manager-app-main-2026-08-20.tar.gz > CHECKSUMS-SHA256.txt
+          git rev-parse HEAD > BACKUP-COMMIT.txt
+      - name: Upload backup artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: solar-order-manager-app-complete-backup-2026-08-20
+          path: |
+            solar-order-manager-app-main-2026-08-20.zip
+            solar-order-manager-app-main-2026-08-20.tar.gz
+            CHECKSUMS-SHA256.txt
+            BACKUP-COMMIT.txt
+          retention-days: 90
