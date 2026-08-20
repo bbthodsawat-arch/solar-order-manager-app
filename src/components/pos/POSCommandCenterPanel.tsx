@@ -5,14 +5,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { DEFAULT_POS_CONTROL, normalizePosControl, PosControlConfig } from './posControl';
 
 const POS_CACHE_KEY = 'som:pos-control:v1';
-
-function readCached(): PosControlConfig {
-  try { return normalizePosControl(JSON.parse(localStorage.getItem(POS_CACHE_KEY) || 'null')); }
-  catch { return DEFAULT_POS_CONTROL; }
-}
-function cache(value: PosControlConfig) {
-  try { localStorage.setItem(POS_CACHE_KEY, JSON.stringify(value)); } catch { /* cache is optional */ }
-}
+function readCached(): PosControlConfig { try { return normalizePosControl(JSON.parse(localStorage.getItem(POS_CACHE_KEY) || 'null')); } catch { return DEFAULT_POS_CONTROL; } }
+function cache(value: PosControlConfig) { try { localStorage.setItem(POS_CACHE_KEY, JSON.stringify(value)); } catch {} }
 
 const saveConfig = async (next: PosControlConfig, userId?: string) => {
   const store = getFirebaseStore();
@@ -20,7 +14,9 @@ const saveConfig = async (next: PosControlConfig, userId?: string) => {
   const { data, error: readError } = await store.from('app_config').select('config').eq('id', 'app').maybeSingle();
   if (readError) throw readError;
   const current = data?.config && typeof data.config === 'object' ? data.config : {};
-  const { error } = await store.from('app_config').upsert({ id: 'app', config: { ...current, posControl: next }, updated_by: userId, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+  const payload: Record<string, any> = { id: 'app', config: { ...current, posControl: next }, updated_at: new Date().toISOString() };
+  if (userId) payload.updated_by = userId;
+  const { error } = await store.from('app_config').upsert(payload, { onConflict: 'id' });
   if (error) throw error;
   cache(next);
 };
@@ -28,7 +24,6 @@ const saveConfig = async (next: PosControlConfig, userId?: string) => {
 export default function POSCommandCenterPanel() {
   const { user } = useAuth();
   const [value, setValue] = useState<PosControlConfig>(() => readCached());
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -37,31 +32,19 @@ export default function POSCommandCenterPanel() {
     let alive = true;
     (async () => {
       try {
-        const store = getFirebaseStore();
-        if (!store) return;
+        const store = getFirebaseStore(); if (!store) return;
         const { data, error } = await store.from('app_config').select('config').eq('id', 'app').maybeSingle();
         if (error) throw error;
         const next = normalizePosControl(data?.config?.posControl);
-        if (!alive) return;
-        setValue(next);
-        cache(next);
-      } catch (error) {
-        console.error('POS command center load failed:', error);
-        if (alive && !localStorage.getItem(POS_CACHE_KEY)) setErrorMessage('ใช้ค่าเริ่มต้นชั่วคราว — เชื่อมต่อฐานข้อมูลไม่ได้');
-      }
+        if (alive) { setValue(next); cache(next); }
+      } catch (error) { console.error('POS command center load failed:', error); }
     })();
     return () => { alive = false; };
   }, []);
 
   const patch = (next: Partial<PosControlConfig>) => { setValue(v => { const n = { ...v, ...next }; cache(n); return n; }); setErrorMessage(''); setSaved(false); };
-  const accents = useMemo(() => [['brand', 'Brand'], ['emerald', 'Emerald'], ['blue', 'Blue'], ['amber', 'Solar'], ['violet', 'Violet']] as const, []);
-
-  const save = async () => {
-    setSaving(true); setSaved(false); setErrorMessage('');
-    try { await saveConfig(value, user?.id); setSaved(true); window.setTimeout(() => setSaved(false), 2200); }
-    catch (error) { console.error('POS settings save failed:', error); setErrorMessage('บันทึกไม่สำเร็จ — ตรวจสอบสิทธิ์การตั้งค่าหรือการเชื่อมต่อฐานข้อมูล'); }
-    finally { setSaving(false); }
-  };
+  const accents = useMemo(() => [['brand','Brand'],['emerald','Emerald'],['blue','Blue'],['amber','Solar'],['violet','Violet']] as const, []);
+  const save = async () => { setSaving(true); setSaved(false); setErrorMessage(''); try { await saveConfig(value, user?.id); setSaved(true); window.setTimeout(() => setSaved(false), 2200); } catch (error) { console.error('POS settings save failed:', error); setErrorMessage('บันทึกไม่สำเร็จ — ตรวจสอบสิทธิ์การตั้งค่าหรือการเชื่อมต่อฐานข้อมูล'); } finally { setSaving(false); } };
 
   return <div className="space-y-4">
     <div className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
@@ -80,7 +63,6 @@ export default function POSCommandCenterPanel() {
     {saved && <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[11px] font-black text-emerald-700"><Check size={15}/> บันทึกแล้ว และ POS จะใช้ค่านี้ในการเปิดครั้งถัดไป</div>}
   </div>;
 }
-
 function Control({label,children}:{label:string;children:ReactNode}){return <div><div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</div>{children}</div>}
 function Select({label,value,options,onChange}:{label:string;value:string;options:string[];onChange:(v:string)=>void}){return <label className="block"><span className="mb-2 block text-[10px] font-black text-slate-400">{label}</span><select value={value} onChange={e=>onChange(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold dark:border-slate-700 dark:bg-slate-800">{options.map(x=><option key={x}>{x}</option>)}</select></label>}
 function Toggle({label,checked,onChange}:{label:string;checked:boolean;onChange:(v:boolean)=>void}){return <button type="button" onClick={()=>onChange(!checked)} className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 text-left dark:border-slate-700"><span className="text-[10px] font-bold">{label}</span><span className={`h-5 w-9 rounded-full p-0.5 transition ${checked?'bg-emerald-500':'bg-slate-300 dark:bg-slate-600'}`}><span className={`block h-4 w-4 rounded-full bg-white transition ${checked?'translate-x-4':''}`}/></span></button>}
