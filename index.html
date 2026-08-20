@@ -7,24 +7,12 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="som-build" content="377e130-auth-fix" />
-    <title>ร้านกลางนาโซล่าเซลล์ - บันทึกรายรับ-รายจ่าย</title>
+    <title>Solar order manager - ระบบจัดการธุรกิจ</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&display=swap"
-      rel="stylesheet"
-      media="print"
-      onload="this.media='all'"
-    />
-    <noscript>
-      <link
-        href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600;700;800&display=swap"
-        rel="stylesheet"
-      />
-    </noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Prompt:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" /></noscript>
     <script>
-      // Last-resort client bootstrap guard. Never leave the user with a white screen
-      // if a production module fails before React can render its own fallback.
       (() => {
         const startedAt = Date.now();
         const root = () => document.getElementById('root');
@@ -33,23 +21,11 @@
           const el = root();
           if (!el || el.dataset.bootFailureShown === '1') return;
           el.dataset.bootFailureShown = '1';
-          el.innerHTML = `<main style="min-height:100vh;display:grid;place-items:center;padding:24px;font-family:system-ui,sans-serif;background:#f8fafc;color:#0f172a"><section style="width:min(520px,100%);background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;box-shadow:0 8px 30px rgba(15,23,42,.08)"><h1 style="margin:0 0 8px;font-size:22px">ร้านกลางนาโซล่าเซลล์</h1><p style="margin:0 0 16px;color:#475569">ระบบเริ่มต้นไม่สำเร็จ จึงหยุดหน้าขาวและแสดงข้อมูลสำหรับกู้คืน</p><button onclick="location.reload()" style="border:0;border-radius:10px;padding:12px 18px;background:#0f172a;color:#fff;font-weight:600">โหลดใหม่</button><details style="margin-top:16px"><summary>รายละเอียด</summary><pre style="white-space:pre-wrap;font-size:12px;color:#64748b">${escape(message)}</pre></details></section></main>`;
+          el.innerHTML = `<main style="min-height:100vh;display:grid;place-items:center;padding:24px;font-family:system-ui,sans-serif;background:#f8fafc;color:#0f172a"><section style="width:min(520px,100%);background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;box-shadow:0 8px 30px rgba(15,23,42,.08)"><h1 style="margin:0 0 8px;font-size:22px">Solar order manager</h1><p style="margin:0 0 16px;color:#475569">ระบบเริ่มต้นไม่สำเร็จ จึงหยุดหน้าขาวและแสดงข้อมูลสำหรับกู้คืน</p><button onclick="location.reload()" style="border:0;border-radius:10px;padding:12px 18px;background:#0f172a;color:#fff;font-weight:600">โหลดใหม่</button><details style="margin-top:16px"><summary>รายละเอียด</summary><pre style="white-space:pre-wrap;font-size:12px;color:#64748b">${escape(message)}</pre></details></section></main>`;
         };
-        window.addEventListener('error', (event) => {
-          if (event.error || event.target instanceof HTMLScriptElement) {
-            const message = event.error?.message || `ไม่สามารถโหลด JavaScript: ${event.target?.src || 'unknown script'}`;
-            showBootFailure(message);
-          }
-        }, true);
-        window.addEventListener('unhandledrejection', (event) => {
-          showBootFailure(`Unhandled promise rejection: ${event.reason instanceof Error ? event.reason.message : String(event.reason)}`);
-        });
-        window.setTimeout(() => {
-          const el = root();
-          if (el && !el.innerHTML.trim() && Date.now() - startedAt >= 12000) {
-            showBootFailure('React ไม่ได้ mount ภายใน 12 วินาที');
-          }
-        }, 12000);
+        window.addEventListener('error', (event) => { if (event.error || event.target instanceof HTMLScriptElement) showBootFailure(event.error?.message || `ไม่สามารถโหลด JavaScript: ${event.target?.src || 'unknown script'}`); }, true);
+        window.addEventListener('unhandledrejection', (event) => showBootFailure(`Unhandled promise rejection: ${event.reason instanceof Error ? event.reason.message : String(event.reason)}`));
+        window.setTimeout(() => { const el = root(); if (el && !el.innerHTML.trim() && Date.now() - startedAt >= 12000) showBootFailure('React ไม่ได้ mount ภายใน 12 วินาที'); }, 12000);
       })();
     </script>
   </head>
