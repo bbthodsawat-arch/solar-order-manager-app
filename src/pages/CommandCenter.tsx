@@ -7,8 +7,7 @@ import {
 } from 'lucide-react';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { useAuth } from '../hooks/useAuth';
-import ShopInfoSettings from '../components/ShopInfoSettings';
-import CompanySettings from '../components/CompanySettings';
+import BusinessDocumentsHub from '../components/BusinessDocumentsHub';
 import { ProductCatalogManager } from '../components/ProductCatalogManager';
 import { ProductInventoryManager } from '../components/ProductInventoryManager';
 import { AssetManager } from '../components/AssetManager';
@@ -26,116 +25,47 @@ import DatabaseBackupSettings from '../components/DatabaseBackupSettings';
 import { SystemResetSettings } from '../components/SystemResetSettings';
 import { DashboardWidgetConfig } from '../types';
 
-interface CommandCenterProps {
-  onNavigateToUsers?: () => void;
-  onNavigateToAudit?: () => void;
-  onLockApp?: () => void;
-}
-
-type SectionId =
-  | 'catalog' | 'inventory' | 'assets' | 'configuration'
-  | 'business' | 'experience' | 'automation' | 'security' | 'login'
-  | 'data' | 'account' | 'system';
-
-type Command = {
-  id: SectionId;
-  title: string;
-  description: string;
-  group: string;
-  keywords: string;
-  icon: any;
-  badge?: string;
-};
-
-const COMMANDS: Command[] = [
-  { id: 'catalog', title: 'ชุดสินค้าและราคา', description: 'ชุดมาตรฐาน ราคา และการสร้างชุดจากหมวดหมู่', group: 'ธุรกิจและสินค้า', keywords: 'สินค้า ชุด ราคา catalog product standard set', icon: Package, badge: 'สินค้า' },
-  { id: 'inventory', title: 'สินค้าและสต็อก', description: 'หมวดหมู่สินค้า รายการสินค้า และจำนวนคงเหลือ', group: 'ธุรกิจและสินค้า', keywords: 'inventory stock สต็อก คลังสินค้า', icon: Layers, badge: 'สต็อก' },
-  { id: 'assets', title: 'ทรัพย์สินและค่าเสื่อม', description: 'เครื่องมือ อุปกรณ์ และค่าเสื่อมราคา', group: 'ธุรกิจและสินค้า', keywords: 'asset depreciation ทรัพย์สิน', icon: Wrench, badge: 'ทรัพย์สิน' },
-  { id: 'configuration', title: 'หมวดหมู่ การชำระเงิน และแท็ก', description: 'รวมคำสั่งหมวดหมู่ รายรับ รายจ่าย วิธีชำระ สถานะ และแท็กไว้ที่เดียว', group: 'ธุรกิจและสินค้า', keywords: 'category payment tag income expense รายรับ รายจ่าย ชำระเงิน', icon: Tags, badge: 'รวมศูนย์' },
-  { id: 'business', title: 'ข้อมูลธุรกิจและเอกสาร', description: 'ข้อมูลร้าน บริษัท โลโก้ ใบเสร็จ และข้อมูลเอกสาร', group: 'แบรนด์และการแสดงผล', keywords: 'shop company receipt business ร้าน บริษัท เอกสาร', icon: Building2, badge: 'ข้อมูลธุรกิจ' },
-  { id: 'experience', title: 'ดีไซน์ แดชบอร์ด และเมนู', description: 'ธีม ระบบดีไซน์ การ์ด วิดเจ็ต และ Bottom Navigation', group: 'แบรนด์และการแสดงผล', keywords: 'theme design dashboard widget navigation ui ux สี ธีม', icon: Palette, badge: 'UI/UX' },
-  { id: 'automation', title: 'การแจ้งเตือนและงานอัตโนมัติ', description: 'เตือนประจำวันและรายการธุรกรรมที่เกิดซ้ำ', group: 'ระบบอัตโนมัติ', keywords: 'notification reminder recurring automation แจ้งเตือน รายการประจำ', icon: Bell, badge: 'Automation' },
-  { id: 'security', title: 'ความปลอดภัยและการเข้าถึง', description: 'PIN สิทธิ์ผู้ใช้ และ Audit Log', group: 'ความปลอดภัย', keywords: 'security pin users roles audit permission สิทธิ์', icon: ShieldCheck, badge: 'Security' },
-  { id: 'login', title: 'การเข้าสู่ระบบ', description: 'เปิด/ปิด Google และอีเมล-รหัสผ่าน พร้อมปรับหน้า Login', group: 'ความปลอดภัย', keywords: 'login authentication google password email เข้าสู่ระบบ ล็อกอิน รหัสผ่าน', icon: Lock, badge: 'Auth' },
-  { id: 'data', title: 'ข้อมูล สำรอง และสุขภาพระบบ', description: 'ฐานข้อมูล สถานะซิงค์ และการสำรองข้อมูล', group: 'ข้อมูลและระบบ', keywords: 'database firestore backup sync health ข้อมูล สำรอง ซิงค์', icon: Database, badge: 'Firebase' },
-  { id: 'account', title: 'บัญชีของฉัน', description: 'โปรไฟล์ บทบาท และการออกจากระบบ', group: 'บัญชีและระบบ', keywords: 'account profile user บัญชี โปรไฟล์', icon: UserCheck, badge: 'บัญชี' },
-  { id: 'system', title: 'เครื่องมือระบบขั้นสูง', description: 'เครื่องมือดูแลระบบและ Factory Reset', group: 'บัญชีและระบบ', keywords: 'system reset factory danger admin ระบบ รีเซ็ต', icon: Settings2, badge: 'Advanced' },
+interface CommandCenterProps { onNavigateToUsers?: () => void; onNavigateToAudit?: () => void; onLockApp?: () => void; }
+type SectionId = 'catalog'|'inventory'|'assets'|'configuration'|'business'|'experience'|'automation'|'security'|'login'|'data'|'account'|'system';
+type Command = { id:SectionId; title:string; description:string; group:string; keywords:string; icon:any; badge?:string };
+const COMMANDS:Command[]=[
+ {id:'catalog',title:'ชุดสินค้าและราคา',description:'ชุดมาตรฐาน ราคา และการสร้างชุดจากหมวดหมู่',group:'ธุรกิจและสินค้า',keywords:'สินค้า ชุด ราคา catalog product standard set',icon:Package,badge:'สินค้า'},
+ {id:'inventory',title:'สินค้าและสต็อก',description:'หมวดหมู่สินค้า รายการสินค้า และจำนวนคงเหลือ',group:'ธุรกิจและสินค้า',keywords:'inventory stock สต็อก คลังสินค้า',icon:Layers,badge:'สต็อก'},
+ {id:'assets',title:'ทรัพย์สินและค่าเสื่อม',description:'เครื่องมือ อุปกรณ์ และค่าเสื่อมราคา',group:'ธุรกิจและสินค้า',keywords:'asset depreciation ทรัพย์สิน',icon:Wrench,badge:'ทรัพย์สิน'},
+ {id:'configuration',title:'หมวดหมู่ การชำระเงิน และแท็ก',description:'รวมคำสั่งหมวดหมู่ รายรับ รายจ่าย วิธีชำระ สถานะ และแท็กไว้ที่เดียว',group:'ธุรกิจและสินค้า',keywords:'category payment tag income expense รายรับ รายจ่าย ชำระเงิน',icon:Tags,badge:'รวมศูนย์'},
+ {id:'business',title:'ข้อมูลธุรกิจและเอกสาร',description:'ศูนย์กลางข้อมูลกิจการ เอกสาร เลขที่ บัญชี และแบรนด์',group:'แบรนด์และการแสดงผล',keywords:'shop company receipt invoice tax business ร้าน บริษัท ใบเสร็จ ใบแจ้งหนี้ ภาษี',icon:Building2,badge:'Single Source'},
+ {id:'experience',title:'ดีไซน์ แดชบอร์ด และเมนู',description:'ธีม ระบบดีไซน์ การ์ด วิดเจ็ต และ Bottom Navigation',group:'แบรนด์และการแสดงผล',keywords:'theme design dashboard widget navigation ui ux สี ธีม',icon:Palette,badge:'UI/UX'},
+ {id:'automation',title:'การแจ้งเตือนและงานอัตโนมัติ',description:'เตือนประจำวันและรายการธุรกรรมที่เกิดซ้ำ',group:'ระบบอัตโนมัติ',keywords:'notification reminder recurring automation แจ้งเตือน รายการประจำ',icon:Bell,badge:'Automation'},
+ {id:'security',title:'ความปลอดภัยและการเข้าถึง',description:'PIN สิทธิ์ผู้ใช้ และ Audit Log',group:'ความปลอดภัย',keywords:'security pin users roles audit permission สิทธิ์',icon:ShieldCheck,badge:'Security'},
+ {id:'login',title:'การเข้าสู่ระบบ',description:'เปิด/ปิด Google และอีเมล-รหัสผ่าน พร้อมปรับหน้า Login',group:'ความปลอดภัย',keywords:'login authentication google password email เข้าสู่ระบบ ล็อกอิน รหัสผ่าน',icon:Lock,badge:'Auth'},
+ {id:'data',title:'ข้อมูล สำรอง และสุขภาพระบบ',description:'ฐานข้อมูล สถานะซิงค์ และการสำรองข้อมูล',group:'ข้อมูลและระบบ',keywords:'database firestore backup sync health ข้อมูล สำรอง ซิงค์',icon:Database,badge:'Firebase'},
+ {id:'account',title:'บัญชีของฉัน',description:'โปรไฟล์ บทบาท และการออกจากระบบ',group:'บัญชีและระบบ',keywords:'account profile user บัญชี โปรไฟล์',icon:UserCheck,badge:'บัญชี'},
+ {id:'system',title:'เครื่องมือระบบขั้นสูง',description:'เครื่องมือดูแลระบบและ Factory Reset',group:'บัญชีและระบบ',keywords:'system reset factory danger admin ระบบ รีเซ็ต',icon:Settings2,badge:'Advanced'}
 ];
-
-const GROUPS = ['ธุรกิจและสินค้า', 'แบรนด์และการแสดงผล', 'ระบบอัตโนมัติ', 'ความปลอดภัย', 'ข้อมูลและระบบ', 'บัญชีและระบบ'];
-
-export default function CommandCenter({ onNavigateToUsers, onNavigateToAudit, onLockApp }: CommandCenterProps) {
-  const { config, updateShopInfo, updateStandardSets, generateSetsFromSubcategories, resetToDefaultCatalog,
-    addProductCategory, updateProductCategory, deleteProductCategory, addProductItem, updateProductItem,
-    deleteProductItem, adjustProductStock, addAsset, updateAsset, deleteAsset, updateWidgetConfig,
-    updateDashboardCardDesign, resetDashboardCardDesign, toggleDashboardCardVisibility, reorderDashboardCards,
-    setDashboardCardCustomColor } = useAppConfig();
-  const { user, appUser } = useAuth();
-  const [active, setActive] = useState<SectionId>('catalog');
-  const [query, setQuery] = useState('');
-  const [mobileMenu, setMobileMenu] = useState(false);
-
-  const isAdmin = user?.email?.toLowerCase() === 'b.b.thodsawat@gmail.com' || appUser?.role === 'admin' || appUser?.role === 'owner';
-  const totalSets = config.standardSets?.length || 0;
-  const totalProducts = config.productCategories?.reduce((n, c) => n + (c.items?.length || 0), 0) || 0;
-  const totalCategories = (config.incomeCategories?.length || 0) + (config.expenseCategories?.length || 0);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return COMMANDS;
-    return COMMANDS.filter(c => `${c.title} ${c.description} ${c.group} ${c.keywords}`.toLowerCase().includes(q));
-  }, [query]);
-
-  const activeCommand = COMMANDS.find(c => c.id === active) || COMMANDS[0];
-  const ActiveIcon = activeCommand.icon;
-  const grouped = GROUPS.map(group => ({ group, items: filtered.filter(c => c.group === group) })).filter(g => g.items.length);
-
-  const toggleWidget = async (key: keyof DashboardWidgetConfig) => {
-    await updateWidgetConfig({ [key]: !(config.dashboardWidgets?.[key] ?? true) });
-  };
-
-  const select = (id: SectionId) => { setActive(id); setMobileMenu(false); };
-
-  return (
-    <div className="max-w-[1600px] mx-auto pb-12 space-y-5">
-      <section className="relative overflow-hidden rounded-[28px] border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 shadow-sm">
-        <div className="absolute -right-24 -top-28 h-72 w-72 rounded-full bg-brand/10 blur-3xl pointer-events-none" />
-        <div className="relative p-5 sm:p-7">
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand-soft px-3 py-1 text-[10px] font-black text-brand"><Settings2 size={13} /> COMMAND CENTER</div>
-              <h1 className="mt-3 text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">ศูนย์ควบคุมระบบ</h1>
-              <p className="mt-1 max-w-2xl text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400">รวมทุกการตั้งค่าไว้เป็นหมวดเดียว ลดเมนูซ้ำ ลดการสลับหน้า และค้นหาคำสั่งได้จากจุดเดียว</p>
-            </div>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 min-w-0 xl:min-w-[360px]"><Stat label="ชุดสินค้า" value={totalSets} icon={Package} /><Stat label="สินค้า" value={totalProducts} icon={Layers} /><Stat label="หมวดระบบ" value={totalCategories} icon={Tags} /></div>
-          </div>
-          <div className="mt-5 flex flex-col sm:flex-row gap-2"><div className="relative flex-1"><Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="ค้นหาคำสั่ง เช่น สินค้า, Login, Google, รหัสผ่าน, ธีม..." className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 py-3 pl-10 pr-10 text-xs font-bold outline-none focus:ring-2 focus:ring-brand/20"/>{query&&<button onClick={()=>setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><X size={15}/></button>}</div><button onClick={()=>setMobileMenu(v=>!v)} className="lg:hidden rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-3 text-xs font-black flex items-center justify-center gap-2"><Sliders size={15}/> เมนูหมวดการตั้งค่า</button></div>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <aside className={`${mobileMenu?'block':'hidden'} lg:block lg:col-span-4 xl:col-span-3`}><div className="sticky top-20 rounded-[26px] border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm max-h-[calc(100vh-110px)] overflow-y-auto"><div className="px-2 pb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">คำสั่งทั้งหมด • {filtered.length}</div>{grouped.map(({group,items})=><div key={group} className="mb-3 last:mb-0"><div className="px-2 py-1.5 text-[10px] font-black text-slate-400">{group}</div><div className="space-y-1">{items.map(item=>{const Icon=item.icon;const selected=active===item.id;return <button key={item.id} onClick={()=>select(item.id)} className={`w-full flex items-center gap-3 rounded-2xl p-3 text-left transition-all ${selected?'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm':'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}><span className={`shrink-0 rounded-xl p-2 ${selected?'bg-white/15 dark:bg-slate-900/10':'bg-slate-100 dark:bg-slate-800'}`}><Icon size={17}/></span><span className="min-w-0 flex-1"><span className="block text-xs font-black truncate">{item.title}</span><span className={`block text-[10px] truncate ${selected?'opacity-60':'text-slate-400'}`}>{item.description}</span></span><ChevronRight size={14} className="shrink-0 opacity-50"/></button>})}</div></div>)}{!filtered.length&&<div className="p-6 text-center text-xs font-bold text-slate-400">ไม่พบคำสั่งที่ค้นหา</div>}</div></aside>
-
-        <main className="lg:col-span-8 xl:col-span-9 min-w-0"><AnimatePresence mode="wait"><motion.div key={active} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:.16}} className="space-y-4"><div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm"><div className="flex items-center gap-3 min-w-0"><div className="rounded-xl bg-brand-soft p-2.5 text-brand"><ActiveIcon size={19}/></div><div className="min-w-0"><h2 className="text-sm sm:text-base font-black truncate">{activeCommand.title}</h2><p className="text-[10px] sm:text-xs text-slate-400 font-semibold truncate">{activeCommand.description}</p></div></div><span className="hidden sm:inline-flex rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[9px] font-black text-slate-500">{activeCommand.badge}</span></div>
-
-              {active==='catalog'&&<ProductCatalogManager standardSets={config.standardSets||[]} onUpdateSets={updateStandardSets} incomeCategories={config.incomeCategories} onGenerateFromSubcategories={generateSetsFromSubcategories} onResetToDefaultCatalog={resetToDefaultCatalog}/>} 
-              {active==='inventory'&&<ProductInventoryManager categories={config.productCategories||[]} onAddCategory={addProductCategory} onUpdateCategory={updateProductCategory} onDeleteCategory={deleteProductCategory} onAddProduct={addProductItem} onUpdateProduct={updateProductItem} onDeleteProduct={deleteProductItem} onAdjustStock={adjustProductStock}/>} 
-              {active==='assets'&&<AssetManager assets={config.assets||[]} onAddAsset={addAsset} onUpdateAsset={updateAsset} onDeleteAsset={deleteAsset}/>} 
-              {active==='configuration'&&<ConfigManager/>}
-              {active==='business'&&<div className="space-y-5"><ShopInfoSettings shopInfo={config.shopInfo||{name:'',address:'',phone:'',receiptNote:''}} onUpdate={updateShopInfo}/><CompanySettings/></div>}
-              {active==='experience'&&<div className="space-y-5"><DesignSystemWorkspace/><DashboardCardCustomizerTab designConfig={config.dashboardCardDesign} onUpdateDesign={updateDashboardCardDesign} onResetDesign={resetDashboardCardDesign} onToggleVisibility={toggleDashboardCardVisibility} onReorderCards={reorderDashboardCards} onSetCustomColor={setDashboardCardCustomColor}/><WidgetGallery widgets={config.dashboardWidgets} onToggleWidget={toggleWidget}/><BottomNavSettingsTab/></div>}
-              {active==='automation'&&<div className="space-y-5"><DailyReminderSettings/><RecurringTransactionsManager/></div>}
-              {active==='security'&&<div className="space-y-5"><SecurityPINSettings onLockApp={onLockApp||(()=>{})}/><ActionCard icon={Users} title="จัดการผู้ใช้งานและสิทธิ์" description="รวมคำสั่ง Admin/Staff ไว้ที่หน้าจัดการผู้ใช้เดียว" onClick={onNavigateToUsers} disabled={!onNavigateToUsers}/><ActionCard icon={ShieldCheck} title="Audit Log" description="ตรวจสอบประวัติการเปลี่ยนแปลงและกิจกรรมสำคัญของระบบ" onClick={onNavigateToAudit} disabled={!onNavigateToAudit}/></div>}
-              {active==='login'&&<LoginControlCenter/>}
-              {active==='data'&&<div className="space-y-5"><DatabaseManager/><DatabaseBackupSettings/></div>}
-              {active==='account'&&<AccountCard user={user} appUser={appUser} isAdmin={isAdmin}/>} 
-              {active==='system'&&<SystemResetSettings/>}
-            </motion.div></AnimatePresence></main>
-      </div>
-    </div>
-  );
+const GROUPS=['ธุรกิจและสินค้า','แบรนด์และการแสดงผล','ระบบอัตโนมัติ','ความปลอดภัย','ข้อมูลและระบบ','บัญชีและระบบ'];
+export default function CommandCenter({onNavigateToUsers,onNavigateToAudit,onLockApp}:CommandCenterProps){
+ const {config,updateStandardSets,generateSetsFromSubcategories,resetToDefaultCatalog,addProductCategory,updateProductCategory,deleteProductCategory,addProductItem,updateProductItem,deleteProductItem,adjustProductStock,addAsset,updateAsset,deleteAsset,updateWidgetConfig,updateDashboardCardDesign,resetDashboardCardDesign,toggleDashboardCardVisibility,reorderDashboardCards,setDashboardCardCustomColor}=useAppConfig();
+ const {user,appUser}=useAuth(); const [active,setActive]=useState<SectionId>('catalog'); const [query,setQuery]=useState(''); const [mobileMenu,setMobileMenu]=useState(false);
+ const isAdmin=user?.email?.toLowerCase()==='b.b.thodsawat@gmail.com'||appUser?.role==='admin'||appUser?.role==='owner';
+ const totalSets=config.standardSets?.length||0; const totalProducts=config.productCategories?.reduce((n,c)=>n+(c.items?.length||0),0)||0; const totalCategories=(config.incomeCategories?.length||0)+(config.expenseCategories?.length||0);
+ const filtered=useMemo(()=>{const q=query.trim().toLowerCase();if(!q)return COMMANDS;return COMMANDS.filter(c=>`${c.title} ${c.description} ${c.group} ${c.keywords}`.toLowerCase().includes(q))},[query]);
+ const activeCommand=COMMANDS.find(c=>c.id===active)||COMMANDS[0]; const ActiveIcon=activeCommand.icon; const grouped=GROUPS.map(group=>({group,items:filtered.filter(c=>c.group===group)})).filter(g=>g.items.length);
+ const toggleWidget=async(key:keyof DashboardWidgetConfig)=>{await updateWidgetConfig({[key] : !(config.dashboardWidgets?.[key]??true)})}; const select=(id:SectionId)=>{setActive(id);setMobileMenu(false)};
+ return <div className="max-w-[1600px] mx-auto pb-12 space-y-5">
+  <section className="relative overflow-hidden rounded-[28px] border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 shadow-sm"><div className="absolute -right-24 -top-28 h-72 w-72 rounded-full bg-brand/10 blur-3xl pointer-events-none"/><div className="relative p-5 sm:p-7"><div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5"><div><div className="inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand-soft px-3 py-1 text-[10px] font-black text-brand"><Settings2 size={13}/> COMMAND CENTER</div><h1 className="mt-3 text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">ศูนย์ควบคุมระบบ</h1><p className="mt-1 max-w-2xl text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400">รวมทุกการตั้งค่าไว้เป็นหมวดเดียว ลดเมนูซ้ำ ลดการสลับหน้า และค้นหาคำสั่งได้จากจุดเดียว</p></div><div className="grid grid-cols-3 gap-2 sm:gap-3 min-w-0 xl:min-w-[360px]"><Stat label="ชุดสินค้า" value={totalSets} icon={Package}/><Stat label="สินค้า" value={totalProducts} icon={Layers}/><Stat label="หมวดระบบ" value={totalCategories} icon={Tags}/></div></div><div className="mt-5 flex flex-col sm:flex-row gap-2"><div className="relative flex-1"><Search size={17} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="ค้นหาคำสั่ง เช่น สินค้า, Login, Google, รหัสผ่าน, ธีม..." className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 py-3 pl-10 pr-10 text-xs font-bold outline-none focus:ring-2 focus:ring-brand/20"/>{query&&<button onClick={()=>setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"><X size={15}/></button>}</div><button onClick={()=>setMobileMenu(v=>!v)} className="lg:hidden rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-3 text-xs font-black flex items-center justify-center gap-2"><Sliders size={15}/> เมนูหมวดการตั้งค่า</button></div></div></section>
+  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5"><aside className={`${mobileMenu?'block':'hidden'} lg:block lg:col-span-4 xl:col-span-3`}><div className="sticky top-20 rounded-[26px] border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm max-h-[calc(100vh-110px)] overflow-y-auto"><div className="px-2 pb-2 text-[10px] font-black uppercase tracking-widest text-slate-400">คำสั่งทั้งหมด • {filtered.length}</div>{grouped.map(({group,items})=><div key={group} className="mb-3 last:mb-0"><div className="px-2 py-1.5 text-[10px] font-black text-slate-400">{group}</div><div className="space-y-1">{items.map(item=>{const Icon=item.icon;const selected=active===item.id;return <button key={item.id} onClick={()=>select(item.id)} className={`w-full flex items-center gap-3 rounded-2xl p-3 text-left transition-all ${selected?'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm':'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}><span className={`shrink-0 rounded-xl p-2 ${selected?'bg-white/15 dark:bg-slate-900/10':'bg-slate-100 dark:bg-slate-800'}`}><Icon size={17}/></span><span className="min-w-0 flex-1"><span className="block text-xs font-black truncate">{item.title}</span><span className={`block text-[10px] truncate ${selected?'opacity-60':'text-slate-400'}`}>{item.description}</span></span><ChevronRight size={14} className="shrink-0 opacity-50"/></button>})}</div></div>)}{!filtered.length&&<div className="p-6 text-center text-xs font-bold text-slate-400">ไม่พบคำสั่งที่ค้นหา</div>}</div></aside>
+  <main className="lg:col-span-8 xl:col-span-9 min-w-0"><AnimatePresence mode="wait"><motion.div key={active} initial={{opacity:0,y:8}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-8}} transition={{duration:.16}} className="space-y-4"><div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 shadow-sm"><div className="flex items-center gap-3 min-w-0"><div className="rounded-xl bg-brand-soft p-2.5 text-brand"><ActiveIcon size={19}/></div><div className="min-w-0"><h2 className="text-sm sm:text-base font-black truncate">{activeCommand.title}</h2><p className="text-[10px] sm:text-xs text-slate-400 font-semibold truncate">{activeCommand.description}</p></div></div><span className="hidden sm:inline-flex rounded-lg bg-slate-100 dark:bg-slate-800 px-2 py-1 text-[9px] font-black text-slate-500">{activeCommand.badge}</span></div>
+  {active==='catalog'&&<ProductCatalogManager standardSets={config.standardSets||[]} onUpdateSets={updateStandardSets} incomeCategories={config.incomeCategories} onGenerateFromSubcategories={generateSetsFromSubcategories} onResetToDefaultCatalog={resetToDefaultCatalog}/>} 
+  {active==='inventory'&&<ProductInventoryManager categories={config.productCategories||[]} onAddCategory={addProductCategory} onUpdateCategory={updateProductCategory} onDeleteCategory={deleteProductCategory} onAddProduct={addProductItem} onUpdateProduct={updateProductItem} onDeleteProduct={deleteProductItem} onAdjustStock={adjustProductStock}/>} 
+  {active==='assets'&&<AssetManager assets={config.assets||[]} onAddAsset={addAsset} onUpdateAsset={updateAsset} onDeleteAsset={deleteAsset}/>} 
+  {active==='configuration'&&<ConfigManager/>}
+  {active==='business'&&<BusinessDocumentsHub/>}
+  {active==='experience'&&<div className="space-y-5"><DesignSystemWorkspace/><DashboardCardCustomizerTab designConfig={config.dashboardCardDesign} onUpdateDesign={updateDashboardCardDesign} onResetDesign={resetDashboardCardDesign} onToggleVisibility={toggleDashboardCardVisibility} onReorderCards={reorderDashboardCards} onSetCustomColor={setDashboardCardCustomColor}/><WidgetGallery widgets={config.dashboardWidgets} onToggleWidget={toggleWidget}/><BottomNavSettingsTab/></div>}
+  {active==='automation'&&<div className="space-y-5"><DailyReminderSettings/><RecurringTransactionsManager/></div>}
+  {active==='security'&&<div className="space-y-5"><SecurityPINSettings onLockApp={onLockApp||(()=>{})}/><ActionCard icon={Users} title="จัดการผู้ใช้งานและสิทธิ์" description="รวมคำสั่ง Admin/Staff ไว้ที่หน้าจัดการผู้ใช้เดียว" onClick={onNavigateToUsers} disabled={!onNavigateToUsers}/><ActionCard icon={ShieldCheck} title="Audit Log" description="ตรวจสอบประวัติการเปลี่ยนแปลงและกิจกรรมสำคัญของระบบ" onClick={onNavigateToAudit} disabled={!onNavigateToAudit}/></div>}
+  {active==='login'&&<LoginControlCenter/>}{active==='data'&&<div className="space-y-5"><DatabaseManager/><DatabaseBackupSettings/></div>}{active==='account'&&<AccountCard user={user} appUser={appUser} isAdmin={isAdmin}/>} {active==='system'&&<SystemResetSettings/>}
+  </motion.div></AnimatePresence></main></div></div>;
 }
-
 function Stat({label,value,icon:Icon}:{label:string;value:number;icon:any}){return <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/70 p-3"><div className="flex items-center gap-1.5 text-[9px] font-black text-slate-400"><Icon size={12}/>{label}</div><div className="mt-1 text-xl font-black text-slate-900 dark:text-white">{value}</div></div>}
 function ActionCard({icon:Icon,title,description,onClick,disabled}:{icon:any;title:string;description:string;onClick?:()=>void;disabled?:boolean}){return <div className="flex items-center gap-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4"><div className="rounded-xl bg-brand-soft p-3 text-brand"><Icon size={21}/></div><div className="min-w-0 flex-1"><h3 className="text-sm font-black">{title}</h3><p className="text-[10px] text-slate-400 font-semibold mt-0.5">{description}</p></div><button disabled={disabled} onClick={onClick} className="rounded-xl bg-slate-900 dark:bg-white px-4 py-2 text-[10px] font-black text-white dark:text-slate-900 disabled:opacity-40 flex items-center gap-1">เปิด <ChevronRight size={13}/></button></div>}
 function AccountCard({user,appUser,isAdmin}:{user:any;appUser:any;isAdmin:boolean}){return <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 space-y-5"><div className="flex items-center gap-4"><div className="h-16 w-16 rounded-2xl overflow-hidden bg-brand-soft text-brand flex items-center justify-center text-xl font-black">{user?.photoURL?<img src={user.photoURL} alt="Profile" className="h-full w-full object-cover" referrerPolicy="no-referrer"/>:(user?.displayName?.[0]||'U').toUpperCase()}</div><div><h3 className="text-lg font-black">{user?.displayName||'ผู้ใช้งานระบบ'}</h3><p className="text-xs text-slate-400 font-semibold">{user?.email}</p><span className="inline-flex mt-2 rounded-lg bg-brand-soft px-2 py-1 text-[9px] font-black text-brand">{isAdmin?'ADMIN / OWNER':(appUser?.role||'STAFF')}</span></div></div><div className="grid grid-cols-2 gap-3"><div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4"><span className="text-[9px] font-black text-slate-400">สถานะ</span><p className="mt-1 text-xs font-black text-emerald-600">Active</p></div><div className="rounded-2xl bg-slate-50 dark:bg-slate-800 p-4"><span className="text-[9px] font-black text-slate-400">บทบาท</span><p className="mt-1 text-xs font-black">{isAdmin?'Administrator':(appUser?.role||'Staff')}</p></div></div></div>}
