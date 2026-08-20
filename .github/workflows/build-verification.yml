@@ -2,7 +2,7 @@ name: Build verification
 
 on:
   push:
-    branches: [chore/remove-supabase-dependencies]
+    branches: [main, chore/remove-supabase-dependencies]
   pull_request:
     branches: [main]
 
