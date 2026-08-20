@@ -1,13 +1,12 @@
-/* POS/mobile UX v2 — mobile-first, single-scroll workspace */
+/* POS/mobile UX v3 — mobile-first, cart-first workflow */
 @media (max-width: 767px) {
-  /* Use one natural page scroll instead of several tiny nested scroll areas. */
   .max-w-\[1600px\] {
     width: 100% !important;
     max-width: 100% !important;
     min-height: calc(100dvh - 88px) !important;
     height: auto !important;
     overflow: visible !important;
-    padding: 0 10px 96px !important;
+    padding: 0 10px 104px !important;
     gap: 10px !important;
     -webkit-overflow-scrolling: touch;
   }
@@ -21,9 +20,7 @@
     scroll-margin-top: 72px;
   }
 
-  .max-w-\[1600px\] textarea {
-    min-height: 88px;
-  }
+  .max-w-\[1600px\] textarea { min-height: 88px; }
 
   .max-w-\[1600px\] button {
     min-height: 48px;
@@ -31,22 +28,18 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Header becomes compact and remains easy to reach. */
   .max-w-\[1600px\] > div:first-child {
     position: sticky;
     top: 8px;
-    z-index: 30;
+    z-index: 40;
     padding: 12px !important;
     border-radius: 20px !important;
     backdrop-filter: blur(14px);
-    background: rgba(255,255,255,.94) !important;
+    background: rgba(255,255,255,.96) !important;
   }
 
-  .dark .max-w-\[1600px\] > div:first-child {
-    background: rgba(15,23,42,.94) !important;
-  }
+  .dark .max-w-\[1600px\] > div:first-child { background: rgba(15,23,42,.96) !important; }
 
-  /* Mode bar: horizontal thumb-friendly rail, never a wrapped wall of buttons. */
   .max-w-\[1600px\] > div:first-child > div:first-child > div:last-child {
     display: flex !important;
     flex-wrap: nowrap !important;
@@ -56,38 +49,27 @@
     padding-bottom: 2px;
   }
 
-  .max-w-\[1600px\] > div:first-child > div:first-child > div:last-child::-webkit-scrollbar {
-    display: none;
-  }
+  .max-w-\[1600px\] > div:first-child > div:first-child > div:last-child::-webkit-scrollbar { display: none; }
+  .max-w-\[1600px\] > div:first-child > div:first-child > div:last-child > button { flex: 0 0 auto; white-space: nowrap; }
 
-  .max-w-\[1600px\] > div:first-child > div:first-child > div:last-child > button {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
-  /* The main POS workspace is a normal document flow on phones. */
-  .max-w-\[1600px\] > div:nth-child(2),
-  .max-w-\[1600px\] > div:nth-child(2) > div,
-  .max-w-\[1600px\] > div:nth-child(2) > div > div {
+  /* Single-column phone workflow: catalog first, cart immediately after it. */
+  .max-w-\[1600px\] > div:nth-child(2) {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
     height: auto !important;
     min-height: 0 !important;
     overflow: visible !important;
   }
 
-  /* Catalog and cart become stacked cards; the browser owns scrolling. */
-  .max-w-\[1600px\] > div:nth-child(2) {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 12px !important;
-  }
-
-  .max-w-\[1600px\] > div:nth-child(2) > div:first-child,
-  .max-w-\[1600px\] > div:nth-child(2) > div:last-child {
+  .max-w-\[1600px\] > div:nth-child(2) > div {
     width: 100% !important;
     flex: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
   }
 
-  /* Remove the inner catalog scroll trap. */
   .max-w-\[1600px\] > div:nth-child(2) > div:first-child .flex-1.overflow-y-auto,
   .max-w-\[1600px\] > div:nth-child(2) > div:last-child .flex-1.overflow-y-auto,
   .max-w-\[1600px\] > div:nth-child(2) > div:last-child .max-h-\[520px\] {
@@ -97,49 +79,84 @@
     min-height: 0 !important;
   }
 
-  /* Product cards are larger touch targets and easier to scan. */
-  .max-w-\[1600px\] .grid.grid-cols-2 {
-    gap: 8px !important;
+  .max-w-\[1600px\] .grid.grid-cols-2 { gap: 8px !important; }
+  .max-w-\[1600px\] .grid.grid-cols-2 > * { min-width: 0; }
+  .max-w-\[1600px\] .grid.grid-cols-2 button { min-width: 48px; }
+
+  /* CART REDESIGN: make the basket a clear, touch-first workspace. */
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child {
+    order: 2 !important;
+    position: relative !important;
+    z-index: 10;
+    margin-top: 4px !important;
+    padding-bottom: 14px !important;
+    border-radius: 22px !important;
+    box-shadow: 0 10px 30px rgba(15,23,42,.08);
   }
 
-  .max-w-\[1600px\] .grid.grid-cols-2 > * {
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child .overflow-hidden {
+    overflow: visible !important;
+  }
+
+  /* Cart list gets breathing room so the final checkout bar cannot cover controls. */
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div {
     min-width: 0;
   }
 
-  /* Cart items: keep quantity controls generous and prevent accidental edge taps. */
-  .max-w-\[1600px\] .grid.grid-cols-2 button {
-    min-width: 48px;
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div:first-child {
+    position: sticky !important;
+    top: 74px !important;
+    z-index: 20 !important;
+    background: rgba(255,255,255,.97) !important;
+    backdrop-filter: blur(12px);
+    border-radius: 18px 18px 0 0;
   }
 
-  /* Customer/payment sections breathe more on small screens. */
-  .max-w-\[1600px\] .p-4 {
-    padding: 14px !important;
+  .dark .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div:first-child {
+    background: rgba(15,23,42,.97) !important;
   }
 
-  /* Primary checkout action is visually dominant and stays reachable after form work. */
-  .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div > div:last-child {
-    position: sticky;
-    bottom: 0;
-    z-index: 25;
-    margin: 0 -14px -14px;
-    padding: 12px 14px 14px;
-    background: rgba(255,255,255,.96);
+  /* Every cart quantity/remove action remains visible and easy to tap. */
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child button {
+    min-height: 46px !important;
+    min-width: 46px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child button svg {
+    pointer-events: none;
+  }
+
+  /* Do not let the checkout summary cover the last cart item. */
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div:last-child {
+    position: relative !important;
+    bottom: auto !important;
+    margin: 12px 0 0 !important;
+    padding: 12px !important;
+    background: rgba(255,255,255,.98) !important;
     border-top: 1px solid rgba(148,163,184,.2);
+    border-radius: 18px !important;
     backdrop-filter: blur(14px);
   }
 
-  .dark .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div > div:last-child {
-    background: rgba(15,23,42,.96);
+  .dark .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div:last-child {
+    background: rgba(15,23,42,.98) !important;
   }
 
-  .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div > div:last-child button:last-child {
-    min-height: 54px;
-    font-size: 14px !important;
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div:last-child button:last-child {
+    min-height: 56px !important;
+    font-size: 15px !important;
+    font-weight: 900 !important;
   }
 
-  /* Give the final total enough visual priority. */
-  .max-w-\[1600px\] .text-2xl.font-black {
-    letter-spacing: -0.02em;
+  .max-w-\[1600px\] .text-2xl.font-black { letter-spacing: -0.02em; }
+
+  /* Customer/payment sections breathe more on small screens. */
+  .max-w-\[1600px\] .p-4 { padding: 14px !important; }
+
+  /* Explicit mobile cart action affordance. */
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child button:active {
+    transform: scale(.97);
   }
 }
 
@@ -174,10 +191,7 @@
     box-shadow: 0 6px 18px rgba(220,38,38,.35) !important;
   }
 
-  .print-hidden-controls > button:last-child:active {
-    transform: scale(.97);
-    background: #b91c1c !important;
-  }
+  .print-hidden-controls > button:last-child:active { transform: scale(.97); background: #b91c1c !important; }
 
   #printable-receipt {
     width: calc(100vw - 20px) !important;
@@ -189,14 +203,10 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  #printable-receipt > div {
-    padding: 20px !important;
-  }
+  #printable-receipt > div { padding: 20px !important; }
 }
 
-@media print {
-  .print-hidden-controls { display: none !important; }
-}
+@media print { .print-hidden-controls { display: none !important; } }
 
 .som-pos-toast {
   border-radius: 16px !important;
