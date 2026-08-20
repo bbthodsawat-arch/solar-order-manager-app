@@ -1,0 +1,48 @@
+/* POS Cart v3 — one-thumb, cart-first mobile workflow */
+@media (max-width: 767px) {
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child {
+    position: relative !important;
+    width: 100% !important;
+    border: 2px solid rgba(15,23,42,.08) !important;
+    border-radius: 24px !important;
+    background: rgba(255,255,255,.98) !important;
+    box-shadow: 0 12px 34px rgba(15,23,42,.10) !important;
+    overflow: visible !important;
+  }
+  .dark .max-w-\[1600px\] > div:nth-child(2) > div:last-child {
+    background: rgba(15,23,42,.98) !important;
+    border-color: rgba(255,255,255,.08) !important;
+  }
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child button {
+    min-width: 48px !important;
+    min-height: 48px !important;
+    border-radius: 14px !important;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child button:active {
+    transform: scale(.96);
+  }
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child button svg { flex-shrink: 0; }
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div > div:last-child {
+    border-radius: 20px 20px 0 0 !important;
+    box-shadow: 0 -8px 24px rgba(15,23,42,.08) !important;
+  }
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div > div:last-child button {
+    min-height: 56px !important;
+    border-radius: 16px !important;
+    font-weight: 900 !important;
+  }
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child input,
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child select,
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child textarea {
+    min-height: 50px !important;
+    font-size: 16px !important;
+  }
+}
+@media (min-width: 768px) {
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child {
+    border-radius: 24px !important;
+    box-shadow: 0 12px 34px rgba(15,23,42,.08) !important;
+  }
+}
