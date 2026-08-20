@@ -1,42 +1,201 @@
-/* POS/mobile UX refinements */
+/* POS/mobile UX v2 — mobile-first, single-scroll workspace */
 @media (max-width: 767px) {
+  /* Use one natural page scroll instead of several tiny nested scroll areas. */
   .max-w-\[1600px\] {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: calc(100dvh - 88px) !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 10px 96px !important;
+    gap: 10px !important;
     -webkit-overflow-scrolling: touch;
   }
 
   .max-w-\[1600px\] input,
   .max-w-\[1600px\] select,
   .max-w-\[1600px\] textarea {
-    min-height: 44px;
-    font-size: 16px;
+    min-height: 48px;
+    font-size: 16px !important;
+    line-height: 1.35;
+    scroll-margin-top: 72px;
+  }
+
+  .max-w-\[1600px\] textarea {
+    min-height: 88px;
   }
 
   .max-w-\[1600px\] button {
-    min-height: 44px;
+    min-height: 48px;
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .max-w-\[1600px\] .overflow-y-auto,
-  .max-w-\[1600px\] .overflow-x-auto {
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+  /* Header becomes compact and remains easy to reach. */
+  .max-w-\[1600px\] > div:first-child {
+    position: sticky;
+    top: 8px;
+    z-index: 30;
+    padding: 12px !important;
+    border-radius: 20px !important;
+    backdrop-filter: blur(14px);
+    background: rgba(255,255,255,.94) !important;
   }
 
-  /* Keep POS mode switching usable with one thumb instead of wrapping into a tall toolbar. */
+  .dark .max-w-\[1600px\] > div:first-child {
+    background: rgba(15,23,42,.94) !important;
+  }
+
+  /* Mode bar: horizontal thumb-friendly rail, never a wrapped wall of buttons. */
   .max-w-\[1600px\] > div:first-child > div:first-child > div:last-child {
-    overflow-x: auto;
-    flex-wrap: nowrap;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
+    padding-bottom: 2px;
   }
 
   .max-w-\[1600px\] > div:first-child > div:first-child > div:last-child::-webkit-scrollbar {
     display: none;
   }
 
-  /* Give the checkout total enough visual priority on narrow screens. */
+  .max-w-\[1600px\] > div:first-child > div:first-child > div:last-child > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  /* The main POS workspace is a normal document flow on phones. */
+  .max-w-\[1600px\] > div:nth-child(2),
+  .max-w-\[1600px\] > div:nth-child(2) > div,
+  .max-w-\[1600px\] > div:nth-child(2) > div > div {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Catalog and cart become stacked cards; the browser owns scrolling. */
+  .max-w-\[1600px\] > div:nth-child(2) {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  .max-w-\[1600px\] > div:nth-child(2) > div:first-child,
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child {
+    width: 100% !important;
+    flex: none !important;
+  }
+
+  /* Remove the inner catalog scroll trap. */
+  .max-w-\[1600px\] > div:nth-child(2) > div:first-child .flex-1.overflow-y-auto,
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child .flex-1.overflow-y-auto,
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child .max-h-\[520px\] {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  /* Product cards are larger touch targets and easier to scan. */
+  .max-w-\[1600px\] .grid.grid-cols-2 {
+    gap: 8px !important;
+  }
+
+  .max-w-\[1600px\] .grid.grid-cols-2 > * {
+    min-width: 0;
+  }
+
+  /* Cart items: keep quantity controls generous and prevent accidental edge taps. */
+  .max-w-\[1600px\] .grid.grid-cols-2 button {
+    min-width: 48px;
+  }
+
+  /* Customer/payment sections breathe more on small screens. */
+  .max-w-\[1600px\] .p-4 {
+    padding: 14px !important;
+  }
+
+  /* Primary checkout action is visually dominant and stays reachable after form work. */
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div > div:last-child {
+    position: sticky;
+    bottom: 0;
+    z-index: 25;
+    margin: 0 -14px -14px;
+    padding: 12px 14px 14px;
+    background: rgba(255,255,255,.96);
+    border-top: 1px solid rgba(148,163,184,.2);
+    backdrop-filter: blur(14px);
+  }
+
+  .dark .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div > div:last-child {
+    background: rgba(15,23,42,.96);
+  }
+
+  .max-w-\[1600px\] > div:nth-child(2) > div:last-child > div > div:last-child button:last-child {
+    min-height: 54px;
+    font-size: 14px !important;
+  }
+
+  /* Give the final total enough visual priority. */
   .max-w-\[1600px\] .text-2xl.font-black {
     letter-spacing: -0.02em;
   }
+}
+
+/* Receipt modal controls: mobile-first bottom action dock. */
+@media (max-width: 767px) {
+  .print-hidden-controls {
+    position: fixed !important;
+    inset: auto 10px 10px 10px !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    z-index: 120 !important;
+    padding: 8px !important;
+    border-radius: 20px !important;
+    background: rgba(15,23,42,.94) !important;
+    box-shadow: 0 16px 40px rgba(15,23,42,.3) !important;
+    backdrop-filter: blur(14px);
+  }
+
+  .print-hidden-controls button {
+    min-height: 52px !important;
+    border-radius: 14px !important;
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    justify-content: center !important;
+  }
+
+  .print-hidden-controls > button:last-child {
+    background: #dc2626 !important;
+    color: #fff !important;
+    border: 2px solid #ef4444 !important;
+    box-shadow: 0 6px 18px rgba(220,38,38,.35) !important;
+  }
+
+  .print-hidden-controls > button:last-child:active {
+    transform: scale(.97);
+    background: #b91c1c !important;
+  }
+
+  #printable-receipt {
+    width: calc(100vw - 20px) !important;
+    max-width: 520px !important;
+    max-height: calc(100dvh - 92px) !important;
+    margin-bottom: 78px !important;
+    border-radius: 18px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #printable-receipt > div {
+    padding: 20px !important;
+  }
+}
+
+@media print {
+  .print-hidden-controls { display: none !important; }
 }
 
 .som-pos-toast {
