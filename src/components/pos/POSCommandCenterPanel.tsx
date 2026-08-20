@@ -7,9 +7,17 @@ import { useAuth } from '../../hooks/useAuth';
 import { DEFAULT_POS_CONTROL, normalizePosControl, PosControlConfig } from './posControl';
 
 const POS_CACHE_KEY = 'som:pos-control:v1';
+const POS_PENDING_KEY = 'som:pos-control:pending:v1';
 function readCached(): PosControlConfig { try { return normalizePosControl(JSON.parse(localStorage.getItem(POS_CACHE_KEY) || 'null')); } catch { return DEFAULT_POS_CONTROL; } }
 function cache(value: PosControlConfig) { try { localStorage.setItem(POS_CACHE_KEY, JSON.stringify(value)); } catch {} }
-const writeConfig = (next: PosControlConfig, userId?: string) => { if (!db) return Promise.reject(new Error('Database connection is unavailable')); const payload: Record<string, unknown> = { 'config.posControl': next, updated_at: new Date().toISOString() }; if (userId) payload.updated_by = userId; return setDoc(doc(db, 'app_config', 'app'), payload, { merge: true }); };
+function markPending(value: PosControlConfig) { try { localStorage.setItem(POS_PENDING_KEY, JSON.stringify(value)); } catch {} }
+function clearPending() { try { localStorage.removeItem(POS_PENDING_KEY); } catch {} }
+const writeConfig = (next: PosControlConfig, userId?: string) => {
+  if (!db) return Promise.reject(new Error('Database connection is unavailable'));
+  const payload: Record<string, unknown> = { 'config.posControl': next, updated_at: new Date().toISOString() };
+  if (userId) payload.updated_by = userId;
+  return setDoc(doc(db, 'app_config', 'app'), payload, { merge: true });
+};
 
 export default function POSCommandCenterPanel() {
   const { user } = useAuth();
@@ -19,34 +27,53 @@ export default function POSCommandCenterPanel() {
   const [syncing, setSyncing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  useEffect(() => { let alive = true; (async () => { try { if (!db) return; const snapshot = await getDoc(doc(db, 'app_config', 'app')); const next = normalizePosControl(snapshot.data()?.config?.posControl); if (alive && snapshot.exists()) { setValue(next); cache(next); } } catch (error) { console.error('POS command center load failed:', error); } })(); return () => { alive = false; }; }, []);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        if (!db) return;
+        const snapshot = await getDoc(doc(db, 'app_config', 'app'));
+        const next = normalizePosControl(snapshot.data()?.config?.posControl);
+        if (alive && snapshot.exists()) { setValue(next); cache(next); }
+      } catch (error) { console.error('POS command center load failed:', error); }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const patch = (next: Partial<PosControlConfig>) => { setValue(v => { const n = { ...v, ...next }; cache(n); return n; }); setErrorMessage(''); setSaved(false); };
   const accents = useMemo(() => [['brand','Brand'],['emerald','Emerald'],['blue','Blue'],['amber','Solar'],['violet','Violet']] as const, []);
 
-  const save = async () => {
+  const save = () => {
     if (saving) return;
-    setSaving(true);
-    setSaved(false);
-    setSyncing(true);
+    const snapshot = value;
+    // Local-first: the UI is considered saved immediately. Network sync is deliberately non-blocking.
+    cache(snapshot);
+    markPending(snapshot);
+    setSaved(true);
     setErrorMessage('');
-    cache(value);
-    toast.loading('กำลังบันทึกการตั้งค่า POS…', { id: 'pos-save' });
-    try {
-      await writeConfig(value, user?.id);
+    setSaving(true);
+    setSyncing(true);
+    toast.success('บันทึกการตั้งค่า POS แล้ว', { id: 'pos-save', duration: 1800 });
+    window.setTimeout(() => setSaved(false), 2400);
+
+    void writeConfig(snapshot, user?.id).then(() => {
+      clearPending();
+      if (!aliveRef.current) return;
       setSyncing(false);
-      setSaved(true);
-      toast.success('บันทึกและซิงก์การตั้งค่า POS สำเร็จ', { id: 'pos-save', duration: 2800 });
-      window.setTimeout(() => setSaved(false), 3200);
-    } catch (error) {
-      console.error('POS settings sync failed:', error);
-      setSyncing(false);
-      setErrorMessage('บันทึกในเครื่องแล้ว แต่ซิงก์ฐานข้อมูลไม่สำเร็จ — POS จะใช้ค่าล่าสุด');
-      toast.error('บันทึกในเครื่องแล้ว แต่ซิงก์ฐานข้อมูลไม่สำเร็จ', { id: 'pos-save', duration: 4200 });
-    } finally {
       setSaving(false);
-    }
+      toast.success('ซิงก์การตั้งค่า POS สำเร็จ', { id: 'pos-sync', duration: 1800 });
+    }).catch((error) => {
+      console.error('POS settings background sync failed:', error);
+      if (!aliveRef.current) return;
+      setSyncing(false);
+      setSaving(false);
+      setErrorMessage('บันทึกในเครื่องแล้ว • กำลังรอซิงก์ฐานข้อมูล');
+      toast.error('ซิงก์ฐานข้อมูลยังไม่สำเร็จ — ค่าที่ตั้งไว้ยังไม่หาย', { id: 'pos-sync-error', duration: 3200 });
+    });
   };
+
+  const aliveRef = { current: true };
+  useEffect(() => () => { aliveRef.current = false; }, []);
 
   return <div className="space-y-4"><div className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
     <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-xs font-black"><SlidersHorizontal size={16}/> POS Control</div><p className="mt-1 text-[11px] font-medium text-slate-400">ตั้งค่าจากศูนย์กลางเดียว และใช้ทันทีใน POS</p></div><button onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[10px] font-black text-white disabled:opacity-50 dark:bg-white dark:text-slate-900"><Save size={14}/>{saving ? 'กำลังซิงก์' : saved ? 'บันทึกแล้ว ✓' : 'บันทึก'}</button></div><div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -56,7 +83,7 @@ export default function POSCommandCenterPanel() {
       <Control label="ตัวเลือกการใช้งาน"><div className="space-y-2">{([['showTodaySummary','สรุปยอดวันนี้'],['showRecentCustomers','ลูกค้าล่าสุด'],['showQuickActions','Quick Actions'],['autoSaveSession','จำเซสชัน POS'],['confirmBeforeSubmit','ยืนยันก่อนบันทึก']] as const).map(([key,label])=><Toggle key={key} label={label} checked={Boolean(value[key])} onChange={v=>patch({[key]:v} as Partial<PosControlConfig>)}/>)}</div></Control>
     </div></section>
     <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="flex items-center gap-2 text-xs font-black"><Zap size={16}/> Workflow Defaults</div><p className="mt-1 text-[11px] font-medium text-slate-400">ค่าเริ่มต้นของ POS ให้ตรงกันทั้งระบบ</p><div className="mt-5 space-y-4"><Select label="วิธีชำระเงินเริ่มต้น" value={value.defaultPaymentMethod} options={['เงินสด','โอนผ่านธนาคาร','เก็บเงินปลายทาง (COD)']} onChange={v=>patch({defaultPaymentMethod:v})}/><Select label="สถานะชำระเงินเริ่มต้น" value={value.defaultPaymentStatus} options={['paid','unpaid','partial','refunded']} onChange={v=>patch({defaultPaymentStatus:v})}/><Select label="สถานะจัดส่งเริ่มต้น" value={value.defaultShippingStatus} options={['สั่งซื้อแล้ว','กำลังประกอบ','กำลังขนส่ง','จัดส่งสำเร็จ']} onChange={v=>patch({defaultShippingStatus:v})}/><div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/70"><div className="flex items-center gap-2 text-[10px] font-black"><Palette size={14}/> Single Source of Truth</div><p className="mt-1 text-[10px] leading-5 text-slate-500 dark:text-slate-400">ค่าที่บันทึกที่นี่จะถูกใช้โดย POS โดยไม่ต้องตั้งค่าซ้ำในหน้า POS</p></div></div></section>
-  </div>{syncing && <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-black text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"><Save size={14} className="animate-pulse"/> บันทึกในเครื่องแล้ว กำลังซิงก์ฐานข้อมูล…</div>}{errorMessage && <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] font-black text-amber-700"><CloudOff size={14}/>{errorMessage}</div>}{saved && <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[11px] font-black text-emerald-700"><Check size={15}/> บันทึกและซิงก์ POS สำเร็จ</div>}</div>;
+  </div>{syncing && <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-black text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"><Save size={14} className="animate-pulse"/> บันทึกแล้ว กำลังซิงก์ฐานข้อมูลเบื้องหลัง…</div>}{errorMessage && <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] font-black text-amber-700"><CloudOff size={14}/>{errorMessage}</div>}{saved && <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[11px] font-black text-emerald-700"><Check size={15}/> บันทึกการตั้งค่า POS แล้ว</div>}</div>;
 }
 function Control({label,children}:{label:string;children:ReactNode}){return <div><div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</div>{children}</div>}
 function Select({label,value,options,onChange}:{label:string;value:string;options:string[];onChange:(v:string)=>void}){return <label className="block"><span className="mb-2 block text-[10px] font-black text-slate-400">{label}</span><select value={value} onChange={e=>onChange(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold dark:border-slate-700 dark:bg-slate-800">{options.map(x=><option key={x}>{x}</option>)}</select></label>}
