@@ -1,21 +1,25 @@
 /* POS/mobile UX refinements */
 @media (max-width: 767px) {
-  .pos-mobile-viewport {
+  .max-w-\[1600px\] {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .max-w-\[1600px\] input,
+  .max-w-\[1600px\] select,
+  .max-w-\[1600px\] textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .max-w-\[1600px\] button {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .max-w-\[1600px\] .overflow-y-auto,
+  .max-w-\[1600px\] .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-  }
-
-  .pos-mobile-viewport input,
-  .pos-mobile-viewport select,
-  .pos-mobile-viewport textarea,
-  .pos-mobile-viewport button {
-    min-height: 44px;
-  }
-
-  .pos-mobile-viewport input,
-  .pos-mobile-viewport select,
-  .pos-mobile-viewport textarea {
-    font-size: 16px;
   }
 }
 
