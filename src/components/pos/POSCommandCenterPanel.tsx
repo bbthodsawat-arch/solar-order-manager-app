@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Check, LayoutGrid, List, Palette, Save, SlidersHorizontal, Sparkles, Zap, CloudOff } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import toast from 'react-hot-toast';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { DEFAULT_POS_CONTROL, normalizePosControl, PosControlConfig } from './posControl';
@@ -13,13 +14,42 @@ const writeConfig = (next: PosControlConfig, userId?: string) => { if (!db) retu
 export default function POSCommandCenterPanel() {
   const { user } = useAuth();
   const [value, setValue] = useState<PosControlConfig>(() => readCached());
-  const [saving, setSaving] = useState(false); const [saved, setSaved] = useState(false); const [syncing, setSyncing] = useState(false); const [errorMessage, setErrorMessage] = useState('');
-  useEffect(() => { let alive = true; (async () => { try { if (!db) return; const snapshot = await getDoc(doc(db, 'app_config', 'app')); const next = normalizePosControl(snapshot.data()?.config?.posControl); if (alive) { setValue(next); cache(next); } } catch (error) { console.error('POS command center load failed:', error); } })(); return () => { alive = false; }; }, []);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => { let alive = true; (async () => { try { if (!db) return; const snapshot = await getDoc(doc(db, 'app_config', 'app')); const next = normalizePosControl(snapshot.data()?.config?.posControl); if (alive && snapshot.exists()) { setValue(next); cache(next); } } catch (error) { console.error('POS command center load failed:', error); } })(); return () => { alive = false; }; }, []);
+
   const patch = (next: Partial<PosControlConfig>) => { setValue(v => { const n = { ...v, ...next }; cache(n); return n; }); setErrorMessage(''); setSaved(false); };
   const accents = useMemo(() => [['brand','Brand'],['emerald','Emerald'],['blue','Blue'],['amber','Solar'],['violet','Violet']] as const, []);
-  const save = () => { setSaving(true); setSaved(false); setSyncing(true); setErrorMessage(''); cache(value); void writeConfig(value, user?.id).then(() => { setSyncing(false); setSaved(true); window.setTimeout(() => setSaved(false), 2600); }).catch(error => { console.error('POS settings sync failed:', error); setSyncing(false); setErrorMessage('บันทึกในเครื่องแล้ว แต่ซิงก์ฐานข้อมูลไม่สำเร็จ — POS จะใช้ค่าล่าสุด'); }); setSaving(false); };
+
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaved(false);
+    setSyncing(true);
+    setErrorMessage('');
+    cache(value);
+    toast.loading('กำลังบันทึกการตั้งค่า POS…', { id: 'pos-save' });
+    try {
+      await writeConfig(value, user?.id);
+      setSyncing(false);
+      setSaved(true);
+      toast.success('บันทึกและซิงก์การตั้งค่า POS สำเร็จ', { id: 'pos-save', duration: 2800 });
+      window.setTimeout(() => setSaved(false), 3200);
+    } catch (error) {
+      console.error('POS settings sync failed:', error);
+      setSyncing(false);
+      setErrorMessage('บันทึกในเครื่องแล้ว แต่ซิงก์ฐานข้อมูลไม่สำเร็จ — POS จะใช้ค่าล่าสุด');
+      toast.error('บันทึกในเครื่องแล้ว แต่ซิงก์ฐานข้อมูลไม่สำเร็จ', { id: 'pos-save', duration: 4200 });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return <div className="space-y-4"><div className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
-    <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-xs font-black"><SlidersHorizontal size={16}/> POS Control</div><p className="mt-1 text-[11px] font-medium text-slate-400">ตั้งค่าจากศูนย์กลางเดียว และใช้ทันทีใน POS</p></div><button onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[10px] font-black text-white disabled:opacity-50 dark:bg-white dark:text-slate-900"><Save size={14}/>{saving ? 'กำลังเตรียม' : syncing ? 'กำลังซิงก์' : saved ? 'บันทึกแล้ว' : 'บันทึก'}</button></div><div className="mt-5 grid gap-4 sm:grid-cols-2">
+    <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-xs font-black"><SlidersHorizontal size={16}/> POS Control</div><p className="mt-1 text-[11px] font-medium text-slate-400">ตั้งค่าจากศูนย์กลางเดียว และใช้ทันทีใน POS</p></div><button onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[10px] font-black text-white disabled:opacity-50 dark:bg-white dark:text-slate-900"><Save size={14}/>{saving ? 'กำลังซิงก์' : saved ? 'บันทึกแล้ว ✓' : 'บันทึก'}</button></div><div className="mt-5 grid gap-4 sm:grid-cols-2">
       <Control label="รูปแบบการจัดวาง"><div className="grid grid-cols-2 gap-2">{([['clean-grid','Clean Grid',LayoutGrid],['compact-grid','Compact',LayoutGrid],['list-first','List First',List],['bento','Bento',Sparkles]] as const).map(([id,label,Icon])=><button key={id} onClick={()=>patch({layout:id})} className={`rounded-2xl border p-3 text-left ${value.layout===id?'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900':'border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'}`}><Icon size={16}/><div className="mt-2 text-[10px] font-black">{label}</div></button>)}</div></Control>
       <Control label="ความหนาแน่นของ UI"><select value={value.density} onChange={e=>patch({density:e.target.value as PosControlConfig['density']})} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold dark:border-slate-700 dark:bg-slate-800"><option value="compact">Compact — ประหยัดพื้นที่</option><option value="comfortable">Comfortable — แนะนำ</option><option value="spacious">Spacious — แตะง่าย</option></select></Control>
       <Control label="สี Accent ของ POS"><div className="grid grid-cols-5 gap-2">{accents.map(([id,label])=><button key={id} title={label} onClick={()=>patch({accent:id})} className={`h-10 rounded-xl border ${value.accent===id?'border-slate-900 ring-2 ring-slate-200':'border-slate-200 dark:border-slate-700'} ${id==='emerald'?'bg-emerald-500':id==='blue'?'bg-blue-500':id==='amber'?'bg-amber-500':id==='violet'?'bg-violet-500':'bg-slate-900'}`}><span className="sr-only">{label}</span></button>)}</div></Control>
