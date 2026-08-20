@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Check, LayoutGrid, List, Palette, Save, SlidersHorizontal, Sparkles, Zap } from 'lucide-react';
-import { getFirebaseStore } from '../../lib/firebaseStore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
 import { DEFAULT_POS_CONTROL, normalizePosControl, PosControlConfig } from './posControl';
 
@@ -8,16 +9,13 @@ const POS_CACHE_KEY = 'som:pos-control:v1';
 function readCached(): PosControlConfig { try { return normalizePosControl(JSON.parse(localStorage.getItem(POS_CACHE_KEY) || 'null')); } catch { return DEFAULT_POS_CONTROL; } }
 function cache(value: PosControlConfig) { try { localStorage.setItem(POS_CACHE_KEY, JSON.stringify(value)); } catch {} }
 
+// Write only the nested POS field. This removes the previous read -> merge -> write
+// round trip that caused the Save button to wait indefinitely on a slow Firestore read.
 const saveConfig = async (next: PosControlConfig, userId?: string) => {
-  const store = getFirebaseStore();
-  if (!store) throw new Error('Database connection is unavailable');
-  const { data, error: readError } = await store.from('app_config').select('config').eq('id', 'app').maybeSingle();
-  if (readError) throw readError;
-  const current = data?.config && typeof data.config === 'object' ? data.config : {};
-  const payload: Record<string, any> = { id: 'app', config: { ...current, posControl: next }, updated_at: new Date().toISOString() };
+  if (!db) throw new Error('Database connection is unavailable');
+  const payload: Record<string, unknown> = { 'config.posControl': next, updated_at: new Date().toISOString() };
   if (userId) payload.updated_by = userId;
-  const { error } = await store.from('app_config').upsert(payload, { onConflict: 'id' });
-  if (error) throw error;
+  await setDoc(doc(db, 'app_config', 'app'), payload, { merge: true });
   cache(next);
 };
 
@@ -32,10 +30,9 @@ export default function POSCommandCenterPanel() {
     let alive = true;
     (async () => {
       try {
-        const store = getFirebaseStore(); if (!store) return;
-        const { data, error } = await store.from('app_config').select('config').eq('id', 'app').maybeSingle();
-        if (error) throw error;
-        const next = normalizePosControl(data?.config?.posControl);
+        if (!db) return;
+        const snapshot = await getDoc(doc(db, 'app_config', 'app'));
+        const next = normalizePosControl(snapshot.data()?.config?.posControl);
         if (alive) { setValue(next); cache(next); }
       } catch (error) { console.error('POS command center load failed:', error); }
     })();
@@ -44,7 +41,19 @@ export default function POSCommandCenterPanel() {
 
   const patch = (next: Partial<PosControlConfig>) => { setValue(v => { const n = { ...v, ...next }; cache(n); return n; }); setErrorMessage(''); setSaved(false); };
   const accents = useMemo(() => [['brand','Brand'],['emerald','Emerald'],['blue','Blue'],['amber','Solar'],['violet','Violet']] as const, []);
-  const save = async () => { setSaving(true); setSaved(false); setErrorMessage(''); try { await saveConfig(value, user?.id); setSaved(true); window.setTimeout(() => setSaved(false), 2200); } catch (error) { console.error('POS settings save failed:', error); setErrorMessage('บันทึกไม่สำเร็จ — ตรวจสอบสิทธิ์การตั้งค่าหรือการเชื่อมต่อฐานข้อมูล'); } finally { setSaving(false); } };
+  const save = async () => {
+    setSaving(true); setSaved(false); setErrorMessage('');
+    // Keep the latest choice locally before any network operation.
+    cache(value);
+    try {
+      await saveConfig(value, user?.id);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2200);
+    } catch (error) {
+      console.error('POS settings save failed:', error);
+      setErrorMessage('บันทึกลงเครื่องแล้ว แต่ซิงก์ฐานข้อมูลไม่สำเร็จ — POS จะใช้ค่าล่าสุด และจะซิงก์ใหม่เมื่อเชื่อมต่อได้');
+    } finally { setSaving(false); }
+  };
 
   return <div className="space-y-4">
     <div className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
