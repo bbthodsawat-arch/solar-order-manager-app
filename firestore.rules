@@ -45,8 +45,9 @@ service cloud.firestore {
     match /recurring_transactions/{documentId} { allow read: if permission('canViewReports'); allow create, update, delete: if permission('canManageSettings'); }
     match /login_settings/{documentId} { allow read: if signedIn(); allow create, update: if permission('canManageSecurity') && validLoginPolicy(); allow delete: if permission('canManageSecurity'); }
     match /settings/{documentId} { allow read: if signedIn(); allow create, update, delete: if permission('canManageSettings'); }
+    match /app_config/{documentId} { allow read: if signedIn(); allow create, update, delete: if permission('canManageSettings'); }
     match /__healthcheck/{documentId} { allow read: if signedIn(); allow write: if permission('canManageDatabase'); }
     match /audit_logs/{documentId} { allow read: if permission('canViewAuditLogs'); allow create: if activeUser(); allow update, delete: if isOwner(); }
-    // Any collection not explicitly declared above remains denied.
+    match /{document=**} { allow read, write: if false; }
   }
 }
