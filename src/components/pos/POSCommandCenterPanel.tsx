@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Check, LayoutGrid, List, Palette, Save, SlidersHorizontal, Sparkles, Zap } from 'lucide-react';
 import { getFirebaseStore } from '../../lib/firebaseStore';
+import { useAuth } from '../../hooks/useAuth';
 import { DEFAULT_POS_CONTROL, normalizePosControl, PosControlConfig } from './posControl';
 
-const saveConfig = async (next: PosControlConfig) => {
+const saveConfig = async (next: PosControlConfig, userId?: string) => {
   const store = getFirebaseStore();
   if (!store) throw new Error('Database connection is unavailable');
   const { data } = await store.from('app_config').select('config').eq('id', 'app').maybeSingle();
   const current = data?.config && typeof data.config === 'object' ? data.config : {};
   const config = { ...current, posControl: next };
-  const { error } = await store.from('app_config').upsert({ id: 'app', config, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+  const { error } = await store.from('app_config').upsert({ id: 'app', config, updated_by: userId, updated_at: new Date().toISOString() }, { onConflict: 'id' });
   if (error) throw error;
   if (typeof window !== 'undefined') {
     localStorage.setItem('klangna_pos_payment', JSON.stringify({ method: next.defaultPaymentMethod, status: next.defaultPaymentStatus }));
@@ -19,6 +20,7 @@ const saveConfig = async (next: PosControlConfig) => {
 };
 
 export default function POSCommandCenterPanel() {
+  const { user } = useAuth();
   const [value, setValue] = useState<PosControlConfig>(DEFAULT_POS_CONTROL);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,7 +50,7 @@ export default function POSCommandCenterPanel() {
 
   const save = async () => {
     setSaving(true); setSaved(false);
-    try { await saveConfig(value); setSaved(true); window.setTimeout(() => setSaved(false), 2200); }
+    try { await saveConfig(value, user?.id); setSaved(true); window.setTimeout(() => setSaved(false), 2200); }
     catch (error) { console.error(error); alert('บันทึกการตั้งค่า POS ไม่สำเร็จ กรุณาลองใหม่'); }
     finally { setSaving(false); }
   };
@@ -90,6 +92,6 @@ export default function POSCommandCenterPanel() {
   </div>;
 }
 
-function Control({label, children}:{label:string;children:React.ReactNode}){return <div><div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</div>{children}</div>}
+function Control({label, children}:{label:string;children:ReactNode}){return <div><div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</div>{children}</div>}
 function Select({label,value,options,onChange}:{label:string;value:string;options:string[];onChange:(v:string)=>void}){return <label className="block"><span className="mb-2 block text-[10px] font-black text-slate-400">{label}</span><select value={value} onChange={e=>onChange(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold dark:border-slate-700 dark:bg-slate-800">{options.map(x=><option key={x}>{x}</option>)}</select></label>}
 function Toggle({label,checked,onChange}:{label:string;checked:boolean;onChange:(v:boolean)=>void}){return <button type="button" onClick={()=>onChange(!checked)} className="flex w-full items-center justify-between rounded-xl border border-slate-200 px-3 py-2.5 text-left dark:border-slate-700"><span className="text-[10px] font-bold">{label}</span><span className={`h-5 w-9 rounded-full p-0.5 transition ${checked?'bg-emerald-500':'bg-slate-300 dark:bg-slate-600'}`}><span className={`block h-4 w-4 rounded-full bg-white transition ${checked?'translate-x-4':''}`}/></span></button>}
