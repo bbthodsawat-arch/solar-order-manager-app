@@ -10,7 +10,7 @@ if (!source.includes("from 'thai-address-select'")) {
   );
 }
 
-source = source.replace("province: ThaiProvinces[0],\n      zipcode: '',", "province: '',\n      subdistrict: '',\n      zipcode: '',");
+source = source.replace("province: ThaiProvinces[0],\n      zipcode: '',", "province: 'กรุงเทพมหานคร',\n      subdistrict: '',\n      zipcode: '',");
 
 if (!source.includes('const [thaiAddressReady')) {
   source = source.replace(
@@ -19,6 +19,15 @@ if (!source.includes('const [thaiAddressReady')) {
     1
   );
 }
+
+source = source.replace(
+  "const sortedIncomes = [...transactions]\n      .filter(t => t.type === 'income')\n      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());",
+  "const sortedIncomes = transactions.filter(t => t.type === 'income').slice(0, 500);"
+);
+source = source.replace(
+  "transactions.forEach(t => {\n      if (t.saleOrderDetails?.customerName)",
+  "transactions.slice(0, 500).forEach(t => {\n      if (t.saleOrderDetails?.customerName)"
+);
 
 source = source.replace(
   "  const handleCheckoutSale = async (e: FormEvent) => {\n    e.preventDefault();\n    if (cart.length === 0) return notifyReaction('warning', 'กรุณาเลือกสินค้าลงตะกร้าอย่างน้อย 1 รายการ');\n    if (!customer.name.trim()) return notifyReaction('warning', 'กรุณากรอกชื่อลูกค้า');",
@@ -59,7 +68,7 @@ source = source.replace(
 
 source = source.replace(
   "setCustomer({ name: '', address: '', district: '', province: ThaiProvinces[0], zipcode: '', phone: '',",
-  "setCustomer({ name: '', address: '', district: '', subdistrict: '', province: '', zipcode: '', phone: '',"
+  "setCustomer({ name: '', address: '', district: '', subdistrict: '', province: 'กรุงเทพมหานคร', zipcode: '', phone: '',"
 );
 
 source = source.replace('placeholder="ชื่อลูกค้า *"', 'placeholder="ชื่อลูกค้า (ไม่กรอกได้ — ลูกค้าทั่วไป)"');
@@ -107,5 +116,28 @@ source = source.replace(
   '<span>{customer.name.trim() ? `บันทึกการขาย (฿${formatNumber(netTotalAmount)})` : `บันทึกขายทั่วไป (฿${formatNumber(netTotalAmount)})`}</span>'
 );
 
+if (!source.includes('const resetPosSession = () => {')) {
+  source = source.replace(
+    '  // Success Screen\n',
+    `  const resetPosSession = () => {\n    setLastSubmittedTransaction(null);\n    setIsPrintReceiptOpen(false);\n    setCart([]);\n    setDiscountAmount(0);\n    setDiscountType('baht');\n    setShippingFee(0);\n    setCustomer({ id: '', name: '', address: '', district: '', subdistrict: '', province: 'กรุงเทพมหานคร', zipcode: '', phone: '', customerTaxId: '', customerBranch: 'สำนักงานใหญ่', customerEmail: '' });\n    setShipping({ status: 'สั่งซื้อแล้ว', deliveryDate: format(new Date(), 'yyyy-MM-dd'), note: '' });\n    setPayment({ method: paymentMethods[0] || 'เงินสด', status: 'paid', date: format(new Date(), 'yyyy-MM-dd'), receiptUrl: undefined });\n    try { ['klangna_pos_cart','klangna_pos_discountAmount','klangna_pos_discountType','klangna_pos_shippingFee','klangna_pos_customer','klangna_pos_shipping','klangna_pos_payment'].forEach(key => localStorage.removeItem(key)); } catch {}\n    toast.success('พร้อมสำหรับรายการขายใหม่');\n  };\n\n  // Success Screen\n`,
+    1
+  );
+}
+source = source.replace(
+  `onClick={() => {\n              setLastSubmittedTransaction(null);\n              setCart([]);\n              setDiscountAmount(0);\n              setShippingFee(0);\n              setCustomer({ name: '', address: '', district: '', province: ThaiProvinces[0], zipcode: '', phone: '' });\n              setIsPrintReceiptOpen(false);\n              toast.success('พร้อมสำหรับเริ่มรายการขายถัดไป');\n            }}`,
+  `onClick={resetPosSession}`
+);
+source = source.replace('onClose={() => setIsPrintReceiptOpen(false)}', 'onClose={resetPosSession}');
+
 fs.writeFileSync(path, source);
-console.log('POS build patch applied');
+
+const receiptPath = 'src/components/SimplifiedReceiptModal.tsx';
+let receipt = fs.readFileSync(receiptPath, 'utf8');
+receipt = receipt.replace(
+  `className="p-2 bg-white text-slate-800 hover:bg-slate-100 rounded-xl shadow-lg transition-all cursor-pointer"`,
+  `className="px-4 py-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-black rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-2 min-h-11"`
+);
+receipt = receipt.replace('<X size={24} />', '<X size={20} /><span>ปิด</span>');
+fs.writeFileSync(receiptPath, receipt);
+
+console.log('POS stability build patch applied');
