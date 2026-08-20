@@ -8,7 +8,6 @@ service cloud.firestore {
     function profileExists() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)); }
     function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
     function activeUser() { return isOwner() || (profileExists() && profile().get('status', 'active') == 'active'); }
-    function role(roleName) { return isOwner() || (profileExists() && profile().get('role', 'staff') == roleName); }
     function permission(permissionName) { return isOwner() || (activeUser() && profile().get('permissions', {}).get(permissionName, false) == true); }
     function validLoginPolicy() { return request.resource.data.get('allow_google_login', true) == true || request.resource.data.get('allow_password_login', true) == true; }
     function safeSelfRegistration(userId) {
