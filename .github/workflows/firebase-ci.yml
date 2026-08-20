@@ -3,6 +3,7 @@ name: Firebase Migration CI
 on:
   push:
     branches:
+      - main
       - agent/firebase-complete-migration
       - agent/firebase-final-merge
   pull_request:
