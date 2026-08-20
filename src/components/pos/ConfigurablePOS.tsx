@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps, type CSSProperties } from 'react';
 import AddTransaction from '../../pages/AddTransaction';
 import { getFirebaseStore } from '../../lib/firebaseStore';
 import { DEFAULT_POS_CONTROL, normalizePosControl, PosControlConfig } from './posControl';
 
 const CONTROL_KEY = 'posControl';
 
-export default function ConfigurablePOS(props: React.ComponentProps<typeof AddTransaction>) {
+export default function ConfigurablePOS(props: ComponentProps<typeof AddTransaction>) {
   const [control, setControl] = useState<PosControlConfig>(DEFAULT_POS_CONTROL);
   const [ready, setReady] = useState(false);
 
@@ -14,16 +14,18 @@ export default function ConfigurablePOS(props: React.ComponentProps<typeof AddTr
     const load = async () => {
       try {
         const store = getFirebaseStore();
-        const { data } = await store?.from('app_config').select('config').eq('id', 'app').maybeSingle();
-        const next = normalizePosControl(data?.config?.[CONTROL_KEY]);
-        if (!alive) return;
-        setControl(next);
-        if (typeof window !== 'undefined') {
-          const currentPayment = JSON.parse(localStorage.getItem('klangna_pos_payment') || '{}');
-          const currentShipping = JSON.parse(localStorage.getItem('klangna_pos_shipping') || '{}');
-          localStorage.setItem('klangna_pos_payment', JSON.stringify({ ...currentPayment, method: next.defaultPaymentMethod, status: next.defaultPaymentStatus }));
-          localStorage.setItem('klangna_pos_shipping', JSON.stringify({ ...currentShipping, status: next.defaultShippingStatus }));
-          localStorage.setItem('klangna_pos_autoSaveSession', String(next.autoSaveSession));
+        if (store) {
+          const { data } = await store.from('app_config').select('config').eq('id', 'app').maybeSingle();
+          const next = normalizePosControl(data?.config?.[CONTROL_KEY]);
+          if (!alive) return;
+          setControl(next);
+          if (typeof window !== 'undefined') {
+            const currentPayment = JSON.parse(localStorage.getItem('klangna_pos_payment') || '{}');
+            const currentShipping = JSON.parse(localStorage.getItem('klangna_pos_shipping') || '{}');
+            localStorage.setItem('klangna_pos_payment', JSON.stringify({ ...currentPayment, method: next.defaultPaymentMethod, status: next.defaultPaymentStatus }));
+            localStorage.setItem('klangna_pos_shipping', JSON.stringify({ ...currentShipping, status: next.defaultShippingStatus }));
+            localStorage.setItem('klangna_pos_autoSaveSession', String(next.autoSaveSession));
+          }
         }
       } catch (error) {
         console.error('POS control load failed:', error);
@@ -38,7 +40,7 @@ export default function ConfigurablePOS(props: React.ComponentProps<typeof AddTr
   const style = useMemo(() => {
     const accent = control.accent === 'emerald' ? '#10b981' : control.accent === 'blue' ? '#3b82f6' : control.accent === 'amber' ? '#f59e0b' : control.accent === 'violet' ? '#8b5cf6' : 'var(--brand-color, #f59e0b)';
     const gap = control.density === 'compact' ? '0.55rem' : control.density === 'spacious' ? '1rem' : '0.75rem';
-    return { '--pos-accent': accent, '--pos-gap': gap } as React.CSSProperties;
+    return { '--pos-accent': accent, '--pos-gap': gap } as CSSProperties;
   }, [control]);
 
   if (!ready) return <div className="min-h-[50vh] flex items-center justify-center text-xs font-bold text-slate-400">กำลังเตรียม POS ตามการตั้งค่าศูนย์ควบคุม...</div>;
