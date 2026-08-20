@@ -21,18 +21,18 @@ export default defineConfig({
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
-        // Stable entry URL lets the HTML bootstrap wait for legacy Service Worker
-        // cleanup before requesting the React module. Dynamic chunks remain hashed.
         entryFileNames: 'assets/app.js',
-        // Keep application modules in Rollup's native graph, but isolate large,
-        // self-contained dependencies that otherwise inflate the initial entry.
-        // This avoids the old broad vendor partitioning that caused cross-chunk
-        // evaluation-order issues while still reducing the startup payload.
+        // Split only dependency packages; application modules stay in Rollup's
+        // native graph to avoid cross-chunk evaluation-order issues.
         manualChunks(id) {
           if (id.includes('/node_modules/recharts/')) return 'charts';
           if (id.includes('/node_modules/jspdf/')) return 'pdf';
           if (id.includes('/node_modules/html2canvas/')) return 'canvas';
           if (id.includes('/node_modules/html5-qrcode/')) return 'scanner';
+          if (id.includes('/node_modules/firebase/')) return 'firebase';
+          if (id.includes('/node_modules/motion/')) return 'motion';
+          if (id.includes('/node_modules/lucide-react/')) return 'icons';
+          if (id.includes('/node_modules/date-fns/')) return 'dates';
         },
       },
     },
