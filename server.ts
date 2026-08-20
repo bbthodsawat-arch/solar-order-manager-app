@@ -1,11 +1,11 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
+import { resolvePort } from './src/lib/port';
 
 async function startServer() {
   const app = express();
-  const configuredPort = Number(process.env.PORT);
-  const PORT = Number.isInteger(configuredPort) && configuredPort > 0 ? configuredPort : 3000;
+  const PORT = resolvePort(process.env.PORT);
 
   // API routes FIRST
   app.use(express.json());

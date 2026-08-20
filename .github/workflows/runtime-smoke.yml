@@ -26,7 +26,7 @@ jobs:
         run: npm run lint
       - name: Production build
         run: npm run build
-      - name: Start production server
+      - name: Start production server on configured port
         run: |
           PORT=3100 NODE_ENV=production npm start > /tmp/som-server.log 2>&1 &
           echo $! > /tmp/som-server.pid
@@ -39,6 +39,19 @@ jobs:
           curl -fsS http://127.0.0.1:3100/ > /tmp/som-index.html
           grep -q 'id="root"' /tmp/som-index.html
           test -s /tmp/som-index.html
+          kill $(cat /tmp/som-server.pid)
+      - name: Fall back from invalid configured port
+        run: |
+          PORT=99999 NODE_ENV=production npm start > /tmp/som-invalid-port.log 2>&1 &
+          echo $! > /tmp/som-server.pid
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3000/api/health; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3000/api/health
+          kill $(cat /tmp/som-server.pid)
       - name: Stop production server
         if: always()
         run: |
