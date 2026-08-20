@@ -2,59 +2,20 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner() {
-      return signedIn() && request.auth.token.email == 'b.b.thodsawat@gmail.com';
-    }
-
-    function isSelf(userId) {
-      return signedIn() && request.auth.uid == userId;
-    }
-
-    function profileExists() {
-      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
-    function profile() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    function activeUser() {
-      return isOwner() || (profileExists() && profile().get('status', 'active') == 'active');
-    }
-
-    function role(roleName) {
-      return isOwner() || (profileExists() && profile().get('role', 'staff') == roleName);
-    }
-
-    function permission(permissionName) {
-      return isOwner() || (
-        activeUser() &&
-        profile().get('permissions', {}).get(permissionName, false) == true
-      );
-    }
-
-    function validLoginPolicy() {
-      return request.resource.data.get('allow_google_login', true) == true
-        || request.resource.data.get('allow_password_login', true) == true;
-    }
-
-    // A newly authenticated user may create only a safe default staff profile.
-    // This prevents a user from self-registering as admin/manager or granting
-    // themselves elevated permissions through the client-side Firestore API.
+    function signedIn() { return request.auth != null; }
+    function isOwner() { return signedIn() && request.auth.token.email == 'b.b.thodsawat@gmail.com'; }
+    function isSelf(userId) { return signedIn() && request.auth.uid == userId; }
+    function profileExists() { return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function activeUser() { return isOwner() || (profileExists() && profile().get('status', 'active') == 'active'); }
+    function role(roleName) { return isOwner() || (profileExists() && profile().get('role', 'staff') == roleName); }
+    function permission(permissionName) { return isOwner() || (activeUser() && profile().get('permissions', {}).get(permissionName, false) == true); }
+    function validLoginPolicy() { return request.resource.data.get('allow_google_login', true) == true || request.resource.data.get('allow_password_login', true) == true; }
     function safeSelfRegistration(userId) {
-      return isSelf(userId)
-        && !exists(/databases/$(database)/documents/users/$(userId))
-        && request.resource.data.keys().hasOnly([
-          'uid', 'email', 'username', 'displayName', 'photoURL',
-          'role', 'permissions', 'status', 'authProvider', 'createdAt', 'lastLoginAt'
-        ])
+      return isSelf(userId) && !exists(/databases/$(database)/documents/users/$(userId))
+        && request.resource.data.keys().hasOnly(['uid','email','username','displayName','photoURL','role','permissions','status','authProvider','createdAt','lastLoginAt'])
         && request.resource.data.get('uid', request.auth.uid) == request.auth.uid
-        && request.resource.data.get('role', 'staff') == 'staff'
-        && request.resource.data.get('status', 'active') == 'active'
+        && request.resource.data.get('role', 'staff') == 'staff' && request.resource.data.get('status', 'active') == 'active'
         && request.resource.data.get('permissions', {}).get('canViewDashboard', true) == true
         && request.resource.data.get('permissions', {}).get('canAddTransactions', true) == true
         && request.resource.data.get('permissions', {}).get('canEditTransactions', true) == true
@@ -69,69 +30,23 @@ service cloud.firestore {
         && request.resource.data.get('permissions', {}).get('canExportData', false) == false
         && request.resource.data.get('permissions', {}).get('canViewAuditLogs', false) == false;
     }
-
     match /users/{userId} {
       allow read: if isSelf(userId) || isOwner();
       allow create: if isOwner() || safeSelfRegistration(userId);
-      allow update: if isOwner() || (
-        isSelf(userId) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'displayName', 'photoURL', 'lastLoginAt', 'updatedAt'
-        ])
-      );
+      allow update: if isOwner() || (isSelf(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','photoURL','lastLoginAt','updatedAt']));
       allow delete: if isOwner();
     }
-
-    match /transactions/{documentId} {
-      allow read: if permission('canViewDashboard') || permission('canViewReports');
-      allow create: if permission('canAddTransactions');
-      allow update: if permission('canEditTransactions');
-      allow delete: if permission('canDeleteTransactions');
-    }
-
-    match /customers/{documentId} {
-      allow read, create, update, delete: if permission('canManageCustomers');
-    }
-
-    match /appointments/{documentId} {
-      allow read, create, update, delete: if permission('canManageCustomers');
-    }
-
-    match /warranties/{documentId} {
-      allow read, create, update, delete: if permission('canManageCustomers');
-    }
-
-    match /quick_notes/{documentId} {
-      allow read, create, update, delete: if permission('canAddTransactions');
-    }
-
-    match /category_budgets/{documentId} {
-      allow read: if permission('canViewReports');
-      allow create, update, delete: if permission('canManageSettings');
-    }
-
-    match /recurring_transactions/{documentId} {
-      allow read: if permission('canViewReports');
-      allow create, update, delete: if permission('canManageSettings');
-    }
-
-    match /login_settings/{documentId} {
-      allow read: if signedIn();
-      allow create, update: if permission('canManageSecurity') && validLoginPolicy();
-      allow delete: if permission('canManageSecurity');
-    }
-
-    match /__healthcheck/{documentId} {
-      allow read: if signedIn();
-      allow write: if permission('canManageDatabase');
-    }
-
-    match /audit_logs/{documentId} {
-      allow read: if permission('canViewAuditLogs');
-      allow create: if activeUser();
-      allow update, delete: if isOwner();
-    }
-
+    match /transactions/{documentId} { allow read: if permission('canViewDashboard') || permission('canViewReports'); allow create: if permission('canAddTransactions'); allow update: if permission('canEditTransactions'); allow delete: if permission('canDeleteTransactions'); }
+    match /customers/{documentId} { allow read, create, update, delete: if permission('canManageCustomers'); }
+    match /appointments/{documentId} { allow read, create, update, delete: if permission('canManageCustomers'); }
+    match /warranties/{documentId} { allow read, create, update, delete: if permission('canManageCustomers'); }
+    match /quick_notes/{documentId} { allow read, create, update, delete: if permission('canAddTransactions'); }
+    match /category_budgets/{documentId} { allow read: if permission('canViewReports'); allow create, update, delete: if permission('canManageSettings'); }
+    match /recurring_transactions/{documentId} { allow read: if permission('canViewReports'); allow create, update, delete: if permission('canManageSettings'); }
+    match /login_settings/{documentId} { allow read: if signedIn(); allow create, update: if permission('canManageSecurity') && validLoginPolicy(); allow delete: if permission('canManageSecurity'); }
+    match /settings/{documentId} { allow read: if signedIn(); allow create, update, delete: if permission('canManageSettings'); }
+    match /__healthcheck/{documentId} { allow read: if signedIn(); allow write: if permission('canManageDatabase'); }
+    match /audit_logs/{documentId} { allow read: if permission('canViewAuditLogs'); allow create: if activeUser(); allow update, delete: if isOwner(); }
     // Any collection not explicitly declared above remains denied.
   }
 }
