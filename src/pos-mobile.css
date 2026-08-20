@@ -1,0 +1,26 @@
+/* POS/mobile UX refinements */
+@media (max-width: 767px) {
+  .pos-mobile-viewport {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .pos-mobile-viewport input,
+  .pos-mobile-viewport select,
+  .pos-mobile-viewport textarea,
+  .pos-mobile-viewport button {
+    min-height: 44px;
+  }
+
+  .pos-mobile-viewport input,
+  .pos-mobile-viewport select,
+  .pos-mobile-viewport textarea {
+    font-size: 16px;
+  }
+}
+
+.som-pos-toast {
+  border-radius: 16px !important;
+  font-weight: 800 !important;
+  padding: 12px 16px !important;
+}
