@@ -1,6 +1,10 @@
-import { toast } from 'react-hot-toast';
+import { toast, ToastOptions } from 'react-hot-toast';
 
 type SoundType = 'success' | 'error' | 'info' | 'warning' | 'cash' | 'delete';
+
+type FeedbackOptions = ToastOptions & {
+  vibrate?: boolean;
+};
 
 class SoundFeedback {
   private audioCtx: AudioContext | null = null;
@@ -33,11 +37,34 @@ export const soundFeedback = Object.assign((type: SoundType) => soundController.
   play: (type: SoundType) => soundController.play(type),
 });
 
-export function notifyReaction(type: SoundType, message: string, options?: any) {
-  if (type === 'success') { soundController.success(); toast.success(message, options); }
-  else if (type === 'cash') { soundController.cashRegister(); toast.success(message, { ...options, icon: '💰' }); }
-  else if (type === 'error') { soundController.warning(); toast.error(message, options); }
-  else if (type === 'warning') { soundController.warning(); toast(message, { ...options, icon: '⚠️' }); }
-  else if (type === 'delete') { soundController.delete(); toast(message, { ...options, icon: '🗑️' }); }
-  else { soundController.click(); toast(message, options); }
+function haptic(type: SoundType) {
+  try {
+    if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+    if (type === 'error') navigator.vibrate([30, 40, 30]);
+    else if (type === 'warning') navigator.vibrate(25);
+    else if (type === 'success' || type === 'cash') navigator.vibrate(12);
+  } catch {}
+}
+
+function buildToastOptions(type: SoundType, options?: FeedbackOptions): ToastOptions {
+  const { vibrate: shouldVibrate = true, ...rest } = options || {};
+  if (shouldVibrate) haptic(type);
+
+  return {
+    duration: type === 'error' ? 4500 : type === 'warning' ? 3500 : 2600,
+    position: 'top-center',
+    className: 'som-pos-toast',
+    ariaProps: { role: type === 'error' ? 'alert' : 'status', 'aria-live': 'polite' },
+    ...rest,
+  };
+}
+
+export function notifyReaction(type: SoundType, message: string, options?: FeedbackOptions) {
+  const toastOptions = buildToastOptions(type, options);
+  if (type === 'success') { soundController.success(); toast.success(message, toastOptions); }
+  else if (type === 'cash') { soundController.cashRegister(); toast.success(message, { ...toastOptions, icon: '💰' }); }
+  else if (type === 'error') { soundController.warning(); toast.error(message, toastOptions); }
+  else if (type === 'warning') { soundController.warning(); toast(message, { ...toastOptions, icon: '⚠️' }); }
+  else if (type === 'delete') { soundController.delete(); toast(message, { ...toastOptions, icon: '🗑️' }); }
+  else { soundController.click(); toast(message, toastOptions); }
 }
