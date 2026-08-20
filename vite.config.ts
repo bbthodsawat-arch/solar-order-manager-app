@@ -19,16 +19,21 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false,
     chunkSizeWarningLimit: 1200,
-    // Keep Rollup's native chunk graph. The previous hand-written vendor
-    // partitioning could create cross-chunk circular evaluation order and
-    // trigger browser TDZ errors such as "Cannot access 'A' before initialization".
-    // Correctness is more important than the old manual split; Vite/Rollup can
-    // still split dynamic imports safely without forcing module execution order.
     rollupOptions: {
       output: {
-        // Stable entry URL lets the HTML bootstrap wait for legacy Service Worker
-        // cleanup before requesting the React module. Dynamic chunks remain hashed.
         entryFileNames: 'assets/app.js',
+        // Split only dependency packages; application modules stay in Rollup's
+        // native graph to avoid cross-chunk evaluation-order issues.
+        manualChunks(id) {
+          if (id.includes('/node_modules/recharts/')) return 'charts';
+          if (id.includes('/node_modules/jspdf/')) return 'pdf';
+          if (id.includes('/node_modules/html2canvas/')) return 'canvas';
+          if (id.includes('/node_modules/html5-qrcode/')) return 'scanner';
+          if (id.includes('/node_modules/firebase/')) return 'firebase';
+          if (id.includes('/node_modules/motion/')) return 'motion';
+          if (id.includes('/node_modules/lucide-react/')) return 'icons';
+          if (id.includes('/node_modules/date-fns/')) return 'dates';
+        },
       },
     },
   },
