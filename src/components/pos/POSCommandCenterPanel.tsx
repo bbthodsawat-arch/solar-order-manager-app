@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Check, LayoutGrid, List, Palette, Save, SlidersHorizontal, Sparkles, Zap, CloudOff } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
@@ -10,6 +10,7 @@ const POS_CACHE_KEY = 'som:pos-control:v1';
 const POS_PENDING_KEY = 'som:pos-control:pending:v1';
 function readCached(): PosControlConfig { try { return normalizePosControl(JSON.parse(localStorage.getItem(POS_CACHE_KEY) || 'null')); } catch { return DEFAULT_POS_CONTROL; } }
 function cache(value: PosControlConfig) { try { localStorage.setItem(POS_CACHE_KEY, JSON.stringify(value)); } catch {} }
+function readPending(): PosControlConfig | null { try { const raw = localStorage.getItem(POS_PENDING_KEY); return raw ? normalizePosControl(JSON.parse(raw)) : null; } catch { return null; } }
 function markPending(value: PosControlConfig) { try { localStorage.setItem(POS_PENDING_KEY, JSON.stringify(value)); } catch {} }
 function clearPending() { try { localStorage.removeItem(POS_PENDING_KEY); } catch {} }
 const writeConfig = (next: PosControlConfig, userId?: string) => {
@@ -21,24 +22,34 @@ const writeConfig = (next: PosControlConfig, userId?: string) => {
 
 export default function POSCommandCenterPanel() {
   const { user } = useAuth();
+  const aliveRef = useRef(true);
   const [value, setValue] = useState<PosControlConfig>(() => readCached());
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  useEffect(() => () => { aliveRef.current = false; }, []);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         if (!db) return;
+        const pending = readPending();
+        if (pending) {
+          setValue(pending);
+          setSyncing(true);
+          void writeConfig(pending, user?.id).then(() => { clearPending(); if (alive) { setSyncing(false); setSaving(false); } }).catch(() => { if (alive) { setSyncing(false); setErrorMessage('ยังรอซิงก์การตั้งค่า POS จากครั้งก่อน'); } });
+          return;
+        }
         const snapshot = await getDoc(doc(db, 'app_config', 'app'));
         const next = normalizePosControl(snapshot.data()?.config?.posControl);
         if (alive && snapshot.exists()) { setValue(next); cache(next); }
       } catch (error) { console.error('POS command center load failed:', error); }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [user?.id]);
 
   const patch = (next: Partial<PosControlConfig>) => { setValue(v => { const n = { ...v, ...next }; cache(n); return n; }); setErrorMessage(''); setSaved(false); };
   const accents = useMemo(() => [['brand','Brand'],['emerald','Emerald'],['blue','Blue'],['amber','Solar'],['violet','Violet']] as const, []);
@@ -46,7 +57,6 @@ export default function POSCommandCenterPanel() {
   const save = () => {
     if (saving) return;
     const snapshot = value;
-    // Local-first: the UI is considered saved immediately. Network sync is deliberately non-blocking.
     cache(snapshot);
     markPending(snapshot);
     setSaved(true);
@@ -54,7 +64,7 @@ export default function POSCommandCenterPanel() {
     setSaving(true);
     setSyncing(true);
     toast.success('บันทึกการตั้งค่า POS แล้ว', { id: 'pos-save', duration: 1800 });
-    window.setTimeout(() => setSaved(false), 2400);
+    window.setTimeout(() => { if (aliveRef.current) setSaved(false); }, 2400);
 
     void writeConfig(snapshot, user?.id).then(() => {
       clearPending();
@@ -71,9 +81,6 @@ export default function POSCommandCenterPanel() {
       toast.error('ซิงก์ฐานข้อมูลยังไม่สำเร็จ — ค่าที่ตั้งไว้ยังไม่หาย', { id: 'pos-sync-error', duration: 3200 });
     });
   };
-
-  const aliveRef = { current: true };
-  useEffect(() => () => { aliveRef.current = false; }, []);
 
   return <div className="space-y-4"><div className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
     <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-xs font-black"><SlidersHorizontal size={16}/> POS Control</div><p className="mt-1 text-[11px] font-medium text-slate-400">ตั้งค่าจากศูนย์กลางเดียว และใช้ทันทีใน POS</p></div><button onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[10px] font-black text-white disabled:opacity-50 dark:bg-white dark:text-slate-900"><Save size={14}/>{saving ? 'กำลังซิงก์' : saved ? 'บันทึกแล้ว ✓' : 'บันทึก'}</button></div><div className="mt-5 grid gap-4 sm:grid-cols-2">
