@@ -21,10 +21,27 @@
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
   }
+
+  /* Keep POS mode switching usable with one thumb instead of wrapping into a tall toolbar. */
+  .max-w-\[1600px\] > div:first-child > div:first-child > div:last-child {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+
+  .max-w-\[1600px\] > div:first-child > div:first-child > div:last-child::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Give the checkout total enough visual priority on narrow screens. */
+  .max-w-\[1600px\] .text-2xl.font-black {
+    letter-spacing: -0.02em;
+  }
 }
 
 .som-pos-toast {
   border-radius: 16px !important;
   font-weight: 800 !important;
   padding: 12px 16px !important;
+  max-width: min(92vw, 420px) !important;
 }
