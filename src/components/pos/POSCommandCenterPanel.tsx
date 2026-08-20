@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Check, LayoutGrid, List, Palette, Save, SlidersHorizontal, Sparkles, Zap } from 'lucide-react';
+import { Check, LayoutGrid, List, Palette, Save, SlidersHorizontal, Sparkles, Zap, CloudOff } from 'lucide-react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../hooks/useAuth';
@@ -9,14 +9,11 @@ const POS_CACHE_KEY = 'som:pos-control:v1';
 function readCached(): PosControlConfig { try { return normalizePosControl(JSON.parse(localStorage.getItem(POS_CACHE_KEY) || 'null')); } catch { return DEFAULT_POS_CONTROL; } }
 function cache(value: PosControlConfig) { try { localStorage.setItem(POS_CACHE_KEY, JSON.stringify(value)); } catch {} }
 
-// Write only the nested POS field. This removes the previous read -> merge -> write
-// round trip that caused the Save button to wait indefinitely on a slow Firestore read.
-const saveConfig = async (next: PosControlConfig, userId?: string) => {
-  if (!db) throw new Error('Database connection is unavailable');
+const writeConfig = (next: PosControlConfig, userId?: string) => {
+  if (!db) return Promise.reject(new Error('Database connection is unavailable'));
   const payload: Record<string, unknown> = { 'config.posControl': next, updated_at: new Date().toISOString() };
   if (userId) payload.updated_by = userId;
-  await setDoc(doc(db, 'app_config', 'app'), payload, { merge: true });
-  cache(next);
+  return setDoc(doc(db, 'app_config', 'app'), payload, { merge: true });
 };
 
 export default function POSCommandCenterPanel() {
@@ -24,6 +21,7 @@ export default function POSCommandCenterPanel() {
   const [value, setValue] = useState<PosControlConfig>(() => readCached());
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
@@ -41,24 +39,22 @@ export default function POSCommandCenterPanel() {
 
   const patch = (next: Partial<PosControlConfig>) => { setValue(v => { const n = { ...v, ...next }; cache(n); return n; }); setErrorMessage(''); setSaved(false); };
   const accents = useMemo(() => [['brand','Brand'],['emerald','Emerald'],['blue','Blue'],['amber','Solar'],['violet','Violet']] as const, []);
-  const save = async () => {
-    setSaving(true); setSaved(false); setErrorMessage('');
-    // Keep the latest choice locally before any network operation.
+
+  const save = () => {
+    setSaving(true); setSaved(false); setSyncing(true); setErrorMessage('');
     cache(value);
-    try {
-      await saveConfig(value, user?.id);
-      setSaved(true);
-      window.setTimeout(() => setSaved(false), 2200);
-    } catch (error) {
-      console.error('POS settings save failed:', error);
-      setErrorMessage('บันทึกลงเครื่องแล้ว แต่ซิงก์ฐานข้อมูลไม่สำเร็จ — POS จะใช้ค่าล่าสุด และจะซิงก์ใหม่เมื่อเชื่อมต่อได้');
-    } finally { setSaving(false); }
+    // Never make the Command Center wait for Firestore. The local value is immediately
+    // usable by POS; Firestore sync runs independently and reports failures separately.
+    void writeConfig(value, user?.id)
+      .then(() => { setSyncing(false); setSaved(true); window.setTimeout(() => setSaved(false), 2600); })
+      .catch((error) => { console.error('POS settings sync failed:', error); setSyncing(false); setErrorMessage('บันทึกในเครื่องแล้ว แต่ซิงก์ฐานข้อมูลไม่สำเร็จ — POS จะใช้ค่าล่าสุด'); });
+    setSaving(false);
   };
 
   return <div className="space-y-4">
     <div className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
       <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-xs font-black"><SlidersHorizontal size={16}/> POS Control</div><p className="mt-1 text-[11px] font-medium text-slate-400">ตั้งค่าจากศูนย์กลางเดียว และใช้ทันทีใน POS</p></div><button onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[10px] font-black text-white disabled:opacity-50 dark:bg-white dark:text-slate-900"><Save size={14}/>{saved ? 'บันทึกแล้ว' : saving ? 'กำลังบันทึก' : 'บันทึก'}</button></div>
+        <div className="flex items-start justify-between gap-3"><div><div className="flex items-center gap-2 text-xs font-black"><SlidersHorizontal size={16}/> POS Control</div><p className="mt-1 text-[11px] font-medium text-slate-400">ตั้งค่าจากศูนย์กลางเดียว และใช้ทันทีใน POS</p></div><button onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-[10px] font-black text-white disabled:opacity-50 dark:bg-white dark:text-slate-900"><Save size={14}/>{saving ? 'กำลังเตรียม' : syncing ? 'กำลังซิงก์' : saved ? 'บันทึกแล้ว' : 'บันทึก'}</button></div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <Control label="รูปแบบการจัดวาง"><div className="grid grid-cols-2 gap-2">{([['clean-grid','Clean Grid',LayoutGrid],['compact-grid','Compact',LayoutGrid],['list-first','List First',List],['bento','Bento',Sparkles]] as const).map(([id,label,Icon])=><button key={id} onClick={()=>patch({layout:id})} className={`rounded-2xl border p-3 text-left ${value.layout===id?'border-slate-900 bg-slate-900 text-white dark:border-white dark:bg-white dark:text-slate-900':'border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'}`}><Icon size={16}/><div className="mt-2 text-[10px] font-black">{label}</div></button>)}</div></Control>
           <Control label="ความหนาแน่นของ UI"><select value={value.density} onChange={e=>patch({density:e.target.value as PosControlConfig['density']})} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs font-bold dark:border-slate-700 dark:bg-slate-800"><option value="compact">Compact — ประหยัดพื้นที่</option><option value="comfortable">Comfortable — แนะนำ</option><option value="spacious">Spacious — แตะง่าย</option></select></Control>
@@ -68,8 +64,9 @@ export default function POSCommandCenterPanel() {
       </section>
       <section className="rounded-[26px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"><div className="flex items-center gap-2 text-xs font-black"><Zap size={16}/> Workflow Defaults</div><p className="mt-1 text-[11px] font-medium text-slate-400">ค่าเริ่มต้นของ POS ให้ตรงกันทั้งระบบ</p><div className="mt-5 space-y-4"><Select label="วิธีชำระเงินเริ่มต้น" value={value.defaultPaymentMethod} options={['เงินสด','โอนผ่านธนาคาร','เก็บเงินปลายทาง (COD)']} onChange={v=>patch({defaultPaymentMethod:v})}/><Select label="สถานะชำระเงินเริ่มต้น" value={value.defaultPaymentStatus} options={['paid','unpaid','partial','refunded']} onChange={v=>patch({defaultPaymentStatus:v})}/><Select label="สถานะจัดส่งเริ่มต้น" value={value.defaultShippingStatus} options={['สั่งซื้อแล้ว','กำลังประกอบ','กำลังขนส่ง','จัดส่งสำเร็จ']} onChange={v=>patch({defaultShippingStatus:v})}/><div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-800/70"><div className="flex items-center gap-2 text-[10px] font-black"><Palette size={14}/> Single Source of Truth</div><p className="mt-1 text-[10px] leading-5 text-slate-500 dark:text-slate-400">ค่าที่บันทึกที่นี่จะถูกใช้โดย POS โดยไม่ต้องตั้งค่าซ้ำในหน้า POS</p></div></div></section>
     </div>
-    {errorMessage && <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] font-black text-amber-700">{errorMessage}</div>}
-    {saved && <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[11px] font-black text-emerald-700"><Check size={15}/> บันทึกแล้ว และ POS จะใช้ค่านี้ในการเปิดครั้งถัดไป</div>}
+    {syncing && <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-black text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"><Save size={14} className="animate-pulse"/> บันทึกในเครื่องแล้ว กำลังซิงก์ฐานข้อมูล…</div>}
+    {errorMessage && <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11px] font-black text-amber-700"><CloudOff size={14}/>{errorMessage}</div>}
+    {saved && <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[11px] font-black text-emerald-700"><Check size={15}/> บันทึกและซิงก์ POS สำเร็จ</div>}
   </div>;
 }
 function Control({label,children}:{label:string;children:ReactNode}){return <div><div className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</div>{children}</div>}
