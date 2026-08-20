@@ -33,6 +33,9 @@ export default defineConfig({
           if (id.includes('/node_modules/motion/')) return 'motion';
           if (id.includes('/node_modules/lucide-react/')) return 'icons';
           if (id.includes('/node_modules/date-fns/')) return 'dates';
+          if (id.includes('/node_modules/@google/genai/')) return 'genai';
+          if (id.includes('/node_modules/qrcode.react/')) return 'qrcode';
+          if (id.includes('/node_modules/thai-address-select/')) return 'thai-address';
         },
       },
     },
