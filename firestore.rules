@@ -46,7 +46,11 @@ service cloud.firestore {
     match /settings/{documentId} { allow read: if signedIn(); allow create, update, delete: if permission('canManageSettings'); }
     match /app_config/{documentId} { allow read: if signedIn(); allow create, update, delete: if permission('canManageSettings'); }
     match /__healthcheck/{documentId} { allow read: if signedIn(); allow write: if permission('canManageDatabase'); }
-    match /audit_logs/{documentId} { allow read: if permission('canViewAuditLogs'); allow create: if activeUser(); allow update, delete: if isOwner(); }
+    match /audit_logs/{documentId} {
+      allow read: if permission('canViewAuditLogs');
+      allow create: if activeUser() && request.resource.data.get('userId', '') == request.auth.uid;
+      allow update, delete: if isOwner();
+    }
     match /{document=**} { allow read, write: if false; }
   }
 }
