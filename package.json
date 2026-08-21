@@ -9,7 +9,8 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist node_modules/.vite",
-    "lint": "tsc --noEmit --project tsconfig.release.json",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit --project tsconfig.release.json",
     "test:workflow": "tsx scripts/business-workflow-check.ts",
     "test:document-numbering": "tsx scripts/document-numbering-check.ts"
   },
