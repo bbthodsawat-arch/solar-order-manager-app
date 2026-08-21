@@ -22,6 +22,7 @@ export const DEFAULT_EXPENSE_CATEGORIES = [
 
 export function useCategories() {
   const {
+    config,
     incomeCategories,
     expenseCategories,
     loading,
@@ -35,11 +36,15 @@ export function useCategories() {
   };
 
   const renameCategory = async (type: 'income' | 'expense', oldName: string, newName: string) => {
-    // This is a bit tricky since we don't have the ID here. 
-    // In the old system, name was the unique identifier.
-    // We'll find by name.
-    const { config } = useAppConfig(); // Note: this won't work inside a function like this if it's not a hook call.
-    // Refactoring components to use useAppConfig directly is safer.
+    const collection = type === 'income' ? config.incomeCategories : config.expenseCategories;
+    const target = collection?.find((item) => item.name === oldName);
+    if (!target) return;
+
+    await updateItem(
+      type === 'income' ? 'incomeCategories' : 'expenseCategories',
+      target.id,
+      { name: newName.trim() },
+    );
   };
 
   return {
@@ -47,6 +52,7 @@ export function useCategories() {
     expenseCategories,
     loading,
     addCategory,
-    // ... rest will be handled by components switching to useAppConfig
+    renameCategory,
+    deleteCategory: deleteItem,
   };
 }
