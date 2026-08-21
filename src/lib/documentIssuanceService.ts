@@ -1,4 +1,4 @@
-import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import type { DocumentNumberRule } from './businessDocumentService';
 
@@ -18,7 +18,7 @@ export type IssuedDocument = {
   amount: number;
   status: 'issued';
   issuedBy?: string;
-  issuedAt: unknown;
+  issuedAt: string;
 };
 
 const DOCUMENT_CENTER_PATH = ['settings', 'documentCenter'] as const;
@@ -45,10 +45,10 @@ export function formatDocumentNumber(rule: DocumentNumberRule): string {
 }
 
 export async function previewIssuedDocumentNumber(type: IssuableDocumentType): Promise<string> {
-  if (!db) return formatDocumentNumber(RULE_DEFAULTS[toRuleKey(type)]);
-  const snapshot = await import('firebase/firestore').then(({ getDoc }) => getDoc(doc(db, ...DOCUMENT_CENTER_PATH)));
-  const data = snapshot.exists() ? snapshot.data() : {};
   const key = toRuleKey(type);
+  if (!db) return formatDocumentNumber(RULE_DEFAULTS[key]);
+  const snapshot = await getDoc(doc(db, ...DOCUMENT_CENTER_PATH));
+  const data = snapshot.exists() ? snapshot.data() : {};
   const rule = { ...RULE_DEFAULTS[key], ...(data.numbering?.[key] || {}) } as DocumentNumberRule;
   return formatDocumentNumber(rule);
 }
@@ -82,11 +82,10 @@ export async function issueDocumentNumber(input: {
     };
 
     const existingArchive = settings.archive?.find((entry: any) => entry?.id === archiveId);
-    if (existingArchive?.number) {
-      return existingArchive as IssuedDocument;
-    }
+    if (existingArchive?.number) return existingArchive as IssuedDocument;
 
     const number = formatDocumentNumber(rule);
+    const issuedAt = new Date().toISOString();
     const now = serverTimestamp();
     const issued: IssuedDocument = {
       id: archiveId,
@@ -100,7 +99,7 @@ export async function issueDocumentNumber(input: {
       amount: Number(input.amount) || 0,
       status: 'issued',
       issuedBy,
-      issuedAt: now,
+      issuedAt,
     };
 
     const nextNumbering = {
