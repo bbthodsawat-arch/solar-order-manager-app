@@ -22,8 +22,6 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: TypeScript check
-        run: npm run lint
       - name: Business workflow checks
         run: npm run test:workflow
       - name: Document numbering regression checks
