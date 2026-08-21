@@ -1,4 +1,4 @@
-name: Diagnose PR60 Types
+name: Repair PR60 Type Contracts
 
 on:
   push:
@@ -6,17 +6,139 @@ on:
       - fix/enforce-typecheck-in-production-build
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  repair:
+    if: ${{ !startsWith(github.event.head_commit.message, 'fix(types): resolve remaining PR60') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: fix/enforce-typecheck-in-production-build
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run build
+      - name: Repair remaining release contracts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p = Path(path)
+              s = p.read_text()
+              if old not in s:
+                  raise SystemExit(f'Expected pattern not found: {path}: {old[:100]!r}')
+              p.write_text(s.replace(old, new, count))
+
+          # 1. Asset status: the domain contract uses `maintenance`.
+          p = Path('src/components/AssetManager.tsx')
+          p.write_text(p.read_text().replace('in_repair', 'maintenance'))
+
+          # 2. Optional persisted recurring day gets a canonical default.
+          replace('src/components/RecurringTransactionsManager.tsx',
+                  'setDayOfMonth(item.dayOfMonth);',
+                  'setDayOfMonth(item.dayOfMonth ?? 1);')
+
+          # 3. Stock card overrides inherit the complete dashboard design contract.
+          replace('src/components/StockReportCard.tsx',
+                  "import { useTheme } from '../hooks/useTheme';",
+                  "import { useTheme } from '../hooks/useTheme';\nimport type { DashboardCardDesignConfig, DashboardCardThemePreset, DashboardCardBorderRadius, DashboardCardShadow } from '../types';")
+          replace('src/components/StockReportCard.tsx',
+                  """  const activeDesign = stockDesign.useKPISync ? kpiDesign : {
+    themePreset: stockDesign.themePreset,
+    borderRadius: stockDesign.borderRadius,
+    shadowStyle: stockDesign.shadowStyle,
+    enableHoverScale: stockDesign.enableHoverScale,
+  };""",
+                  """  const activeDesign: DashboardCardDesignConfig = stockDesign.useKPISync ? kpiDesign : {
+    ...DEFAULT_DASHBOARD_CARD_DESIGN,
+    themePreset: stockDesign.themePreset as DashboardCardThemePreset,
+    borderRadius: stockDesign.borderRadius as DashboardCardBorderRadius,
+    shadowStyle: stockDesign.shadowStyle as DashboardCardShadow,
+    enableHoverScale: stockDesign.enableHoverScale,
+  };""")
+
+          # 4. Sparkline fallback must use the same point shape as live data.
+          replace('src/components/dashboard/DashboardMetricCardsGrid.tsx',
+                  'data={sparkData && sparkData.length > 0 ? sparkData : [0, 10, 20, 15, 30]}',
+                  'data={sparkData && sparkData.length > 0 ? sparkData : [{ value: 0 }, { value: 10 }, { value: 20 }, { value: 15 }, { value: 30 }]}')
+
+          # 5. Firebase Auth User identity is uid, not id.
+          p = Path('src/hooks/useAppConfig.ts')
+          p.write_text(p.read_text().replace('updated_by:user.id', 'updated_by:user.uid'))
+
+          # 6. Persisted JSON initializers need explicit state contracts.
+          replace('src/pages/AddTransaction.tsx',
+                  '  const [customer, setCustomer] = useState(() => {',
+                  """  const [customer, setCustomer] = useState<{
+    id: string;
+    name: string;
+    address: string;
+    district: string;
+    province: string;
+    zipcode: string;
+    phone: string;
+    customerTaxId: string;
+    customerBranch: string;
+    customerEmail: string;
+  }>(() => {""")
+          replace('src/pages/AddTransaction.tsx',
+                  '  const [payment, setPayment] = useState(() => {',
+                  """  const [payment, setPayment] = useState<{
+    status: 'paid' | 'unpaid';
+    method: string;
+    date: string;
+    receiptUrl: string | undefined;
+  }>(() => {""")
+          replace('src/pages/AddTransaction.tsx',
+                  '  const [incomeData, setIncomeData] = useState({',
+                  """  const [incomeData, setIncomeData] = useState<{
+    category: string;
+    detail: string;
+    amount: string;
+    payer: string;
+    paymentMethod: string;
+    receiptUrl: string | undefined;
+  }>({""")
+
+          # 7. Callers expose an optional stock adjustment callback; keep existing update path intact.
+          replace('src/components/ProductInventoryManager.tsx',
+                  "  onDeleteProduct: (categoryId: string, itemId: string) => Promise<void>;\n}",
+                  "  onDeleteProduct: (categoryId: string, itemId: string) => Promise<void>;\n  onAdjustStock?: (categoryId: string, itemId: string, delta: number) => Promise<void>;\n}")
+          replace('src/components/ProductInventoryManager.tsx',
+                  '  onDeleteProduct\n}) => {',
+                  '  onDeleteProduct,\n  onAdjustStock: _onAdjustStock\n}) => {')
+
+          # 8. Remove comparison against a preset that is no longer part of the union.
+          p = Path('src/pages/Dashboard.tsx')
+          s = p.read_text()
+          s = s.replace("currentDesign.themePreset !== 'retro_terminal' && currentDesign.themePreset !== 'cyber_neon'", "currentDesign.themePreset !== 'cyber_neon'")
+          s = s.replace("const activeProfitMargin = activeIncome > 0 ? ((activeProfit / activeIncome) * 100).toFixed(1) : '0';", "const activeProfitMargin = activeIncome > 0 ? Number(((activeProfit / activeIncome) * 100).toFixed(1)) : 0;")
+          p.write_text(s)
+
+          # 9. Dashboard widgets are optional in legacy config; render with the canonical default.
+          replace('src/pages/SettingsWorkspace.tsx',
+                  "import { useAppConfig } from '../hooks/useAppConfig';",
+                  "import { useAppConfig, DEFAULT_WIDGET_CONFIG } from '../hooks/useAppConfig';")
+          p = Path('src/pages/SettingsWorkspace.tsx')
+          s = p.read_text().replace('widgets={config.dashboardWidgets}', 'widgets={config.dashboardWidgets || DEFAULT_WIDGET_CONFIG}')
+          p.write_text(s)
+          PY
+      - name: Install and validate
+        run: |
+          npm install --no-audit --no-fund
+          npm run typecheck
+          npm run build
+      - name: Commit validated repairs
+        shell: bash
+        run: |
+          rm .github/workflows/diagnose-pr60-types.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(types): resolve remaining PR60 contracts"
+          git push origin HEAD:fix/enforce-typecheck-in-production-build
