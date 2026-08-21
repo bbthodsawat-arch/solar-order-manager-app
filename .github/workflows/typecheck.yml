@@ -26,6 +26,10 @@ jobs:
       - name: Commit validated repairs and restore workflow
         shell: bash
         run: |
+          git restore --source=HEAD --worktree dist 2>/dev/null || true
+          git clean -fd dist
+          git restore --source=HEAD --worktree src/pages/AddTransaction.tsx
+          python scripts/repair-pr60-types.py
           rm -f scripts/repair-pr60-types.py .github/workflows/diagnose-pr60-types.yml
           cat > .github/workflows/typecheck.yml <<'YAML'
           name: Strict TypeScript check
@@ -47,7 +51,8 @@ jobs:
           YAML
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add src/components/AssetManager.tsx src/components/RecurringTransactionsManager.tsx src/components/StockReportCard.tsx src/components/dashboard/DashboardMetricCardsGrid.tsx src/hooks/useAppConfig.ts src/pages/AddTransaction.tsx src/components/ProductInventoryManager.tsx src/pages/Dashboard.tsx src/pages/SettingsWorkspace.tsx .github/workflows/typecheck.yml
+          git add -u scripts/repair-pr60-types.py .github/workflows/diagnose-pr60-types.yml
           git diff --cached --check
           git commit -m "fix(types): resolve remaining PR60 contracts"
           git push origin HEAD:fix/enforce-typecheck-in-production-build
