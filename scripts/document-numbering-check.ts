@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const root = process.cwd();
-const generator = readFileSync(resolve(root, 'src/components/DocumentGeneratorModal.tsx'), 'utf8');
+const generatorEntry = readFileSync(resolve(root, 'src/components/DocumentGeneratorModal.tsx'), 'utf8');
+const generator = readFileSync(resolve(root, 'src/components/DocumentGeneratorModalV2.tsx'), 'utf8');
 const issuance = readFileSync(resolve(root, 'src/lib/documentIssuanceService.ts'), 'utf8');
 const settings = readFileSync(resolve(root, 'src/components/BusinessDocumentsHub.tsx'), 'utf8');
 
@@ -10,9 +11,10 @@ function assert(condition: unknown, message: string) {
   if (!condition) throw new Error(`Document numbering check failed: ${message}`);
 }
 
-assert(generator.includes("./DocumentGeneratorModalV2"), 'DocumentGeneratorModal must route through the atomic generator');
+assert(generatorEntry.includes("./DocumentGeneratorModalV2"), 'DocumentGeneratorModal must route through the atomic generator');
 assert(!generator.includes('transaction.id.slice(-6)'), 'generator must not derive business document numbers from Firestore ID suffixes');
 assert(generator.includes('issueDocumentNumber'), 'generator must reserve a number before print/PDF issuance');
+assert(generator.includes('ensureIssuedNumber'), 'print and PDF paths must share the issuance reservation flow');
 assert(issuance.includes('runTransaction'), 'document issuance must use a Firestore transaction');
 assert(issuance.includes("doc(db, 'documents', 'archive', 'items', archiveId)"), 'issued documents must have a durable archive record');
 assert(issuance.includes('settings.archive'), 'settings archive must remain populated for the existing archive UI');
