@@ -21,7 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
       - name: Install dependencies without lifecycle scripts
-        run: npm install --ignore-scripts --no-fund
+        run: npm ci --ignore-scripts --no-fund
       - name: Fail on high or critical production vulnerabilities
         run: npm audit --omit=dev --audit-level=high
