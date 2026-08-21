@@ -10,7 +10,7 @@ export default function ErrorLogger() {
   const [search, setSearch] = useState('');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'local' | 'firebase' | 'network'>('all');
   const loadLogs = () => setLogs(dbManager.getErrorLogs());
-  useEffect(() => { loadLogs(); return dbManager.subscribe(loadLogs); }, []);
+  useEffect(() => { loadLogs(); const unsubscribe = dbManager.subscribe(loadLogs); return () => { unsubscribe(); }; }, []);
   const clear = () => { if (confirm('คุณต้องการลบประวัติข้อผิดพลาดทั้งหมดใช่หรือไม่?')) { dbManager.clearErrorLogs(); notifyReaction('success', 'ล้างประวัติข้อผิดพลาดสำเร็จ'); loadLogs(); } };
   const simulate = (source: 'firebase' | 'local') => { const message = source === 'firebase' ? 'Firebase Firestore simulated connection failure.' : 'LocalStorage simulated quota failure.'; dbManager.addErrorLog(source, 'Simulated failure', message, false); loadLogs(); notifyReaction('success', `จำลองข้อผิดพลาด ${source} สำเร็จ`); };
   const filtered = logs.filter(log => (sourceFilter === 'all' || log.source === sourceFilter) && `${log.errorMessage} ${log.errorType}`.toLowerCase().includes(search.toLowerCase()));
