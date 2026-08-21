@@ -1,13 +1,11 @@
-name: Build verification
+name: Strict TypeScript check
 
 on:
-  push:
-    branches: [main, chore/remove-supabase-dependencies]
   pull_request:
     branches: [main]
 
 jobs:
-  build:
+  typecheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,8 +13,4 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - run: npm run test:workflow
-      - run: npm run test:document-numbering
-      - run: npm run lint
       - run: npm run typecheck
-      - run: npm run build

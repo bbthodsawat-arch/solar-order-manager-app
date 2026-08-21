@@ -9,14 +9,15 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist node_modules/.vite",
-    "lint": "tsc --noEmit",
+    "lint": "tsc --noEmit --project tsconfig.release.json",
+    "typecheck": "tsc --noEmit --project tsconfig.release.json",
     "test:workflow": "tsx scripts/business-workflow-check.ts",
     "test:document-numbering": "tsx scripts/document-numbering-check.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
-    "autoprefixer": "^10.4.21",
+    "autoprefixer": "10.4.21",
     "@vitejs/plugin-react": "^5.0.4",
     "date-fns": "^4.4.0",
     "dotenv": "^17.2.3",
@@ -42,6 +43,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "tsx": "^4.21.0",
+    "typescript": "^5.8.3",
     "vite": "^7.0.0"
   }
 }
