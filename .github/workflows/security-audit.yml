@@ -1,0 +1,27 @@
+name: Security dependency audit
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies without lifecycle scripts
+        run: npm install --ignore-scripts --no-fund
+      - name: Fail on high or critical production vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
