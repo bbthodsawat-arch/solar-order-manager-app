@@ -1,0 +1,1 @@
+Temporary marker for strict TypeScript release work.
