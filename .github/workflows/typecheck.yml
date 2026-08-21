@@ -46,6 +46,7 @@ jobs:
           s=s.replace('email: customer.customerEmail.trim()', "email: customer.customerEmail?.trim() || ''")
           p.write_text(s)
           PY
+          sed -i 's/[[:space:]]\+$//' src/components/dashboard/DashboardMetricCardsGrid.tsx src/pages/SettingsWorkspace.tsx
           rm -f scripts/repair-pr60-types.py .github/workflows/diagnose-pr60-types.yml
           cat > .github/workflows/typecheck.yml <<'YAML'
           name: Strict TypeScript check
