@@ -35,6 +35,10 @@ replace('src/pages/AddTransaction.tsx', '  const [payment, setPayment] = useStat
 replace('src/pages/AddTransaction.tsx', '  const [incomeData, setIncomeData] = useState({', """  const [incomeData, setIncomeData] = useState<{
     category: string; detail: string; amount: string; payer: string; paymentMethod: string; receiptUrl: string | undefined;
   }>({""")
+# Optional legacy customer fields are normalized at the CRM boundary.
+p = Path('src/pages/AddTransaction.tsx')
+s = p.read_text().replace('customerTaxId: customer.customerTaxId.trim()', "customerTaxId: customer.customerTaxId?.trim() || ''").replace('customerBranch: customer.customerBranch.trim()', "customerBranch: customer.customerBranch?.trim() || ''").replace('email: customer.customerEmail.trim()', "email: customer.customerEmail?.trim() || ''")
+p.write_text(s)
 replace('src/components/ProductInventoryManager.tsx', '  onUpdateCategories: (categories: ProductCategory[]) => void;', '  onUpdateCategories?: (categories: ProductCategory[]) => void;')
 replace('src/components/ProductInventoryManager.tsx', "  onDeleteProduct: (categoryId: string, itemId: string) => Promise<void>;\n}", "  onDeleteProduct: (categoryId: string, itemId: string) => Promise<void>;\n  onAdjustStock?: (categoryId: string, itemId: string, delta: number) => Promise<void>;\n}")
 replace('src/components/ProductInventoryManager.tsx', '  onDeleteProduct\n}) => {', '  onDeleteProduct,\n  onAdjustStock: _onAdjustStock\n}) => {')
