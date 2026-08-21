@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'manager' | 'staff' | 'viewer';
+export type UserRole = 'admin' | 'owner' | 'manager' | 'staff' | 'viewer';
 
 export interface UserPermissions {
   canViewDashboard: boolean;
@@ -50,6 +50,7 @@ const ALL: UserPermissions = {
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<UserRole, UserPermissions> = {
   admin: ALL,
+  owner: ALL,
   manager: {
     canViewDashboard: true,
     canAddTransactions: true,
@@ -120,7 +121,7 @@ const DENIED: UserPermissions = Object.keys(ALL).reduce((out, key) => {
 
 export function getUserPermissions(user: AppUser | null): UserPermissions {
   if (!user || user.status === 'suspended') return DENIED;
-  if (user.role === 'admin' || user.email?.toLowerCase() === 'b.b.thodsawat@gmail.com') return DEFAULT_ROLE_PERMISSIONS.admin;
+  if (user.role === 'admin' || user.role === 'owner' || user.email?.toLowerCase() === 'b.b.thodsawat@gmail.com') return DEFAULT_ROLE_PERMISSIONS.admin;
   const defaults = DEFAULT_ROLE_PERMISSIONS[user.role] || DEFAULT_ROLE_PERMISSIONS.staff;
   return { ...defaults, ...(user.permissions || {}) };
 }
