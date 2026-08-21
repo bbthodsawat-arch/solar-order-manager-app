@@ -29,7 +29,23 @@ jobs:
           git restore --source=HEAD --worktree dist 2>/dev/null || true
           git clean -fd dist
           git restore --source=HEAD --worktree src/pages/AddTransaction.tsx
-          python scripts/repair-pr60-types.py
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/pages/AddTransaction.tsx'); s=p.read_text()
+          s=s.replace('  const [customer, setCustomer] = useState(() => {', """  const [customer, setCustomer] = useState<{
+            id?: string; name: string; address: string; district: string; province: string; zipcode: string; phone: string; customerTaxId?: string; customerBranch?: string; customerEmail?: string;
+          }>(() => {""")
+          s=s.replace('  const [payment, setPayment] = useState(() => {', """  const [payment, setPayment] = useState<{
+            status: 'paid' | 'unpaid'; method: string; date: string; receiptUrl: string | undefined;
+          }>(() => {""")
+          s=s.replace('  const [incomeData, setIncomeData] = useState({', """  const [incomeData, setIncomeData] = useState<{
+            category: string; detail: string; amount: string; payer: string; paymentMethod: string; receiptUrl: string | undefined;
+          }>({""")
+          s=s.replace('customerTaxId: customer.customerTaxId.trim()', "customerTaxId: customer.customerTaxId?.trim() || ''")
+          s=s.replace('customerBranch: customer.customerBranch.trim()', "customerBranch: customer.customerBranch?.trim() || ''")
+          s=s.replace('email: customer.customerEmail.trim()', "email: customer.customerEmail?.trim() || ''")
+          p.write_text(s)
+          PY
           rm -f scripts/repair-pr60-types.py .github/workflows/diagnose-pr60-types.yml
           cat > .github/workflows/typecheck.yml <<'YAML'
           name: Strict TypeScript check
