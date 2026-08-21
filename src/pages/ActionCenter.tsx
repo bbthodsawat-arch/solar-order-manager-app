@@ -1,85 +1,28 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { AlertTriangle, CalendarDays, CheckCircle2, CircleDollarSign, Clock3, ListChecks } from 'lucide-react';
 import { addDays, differenceInCalendarDays, format, isValid, parseISO, startOfDay } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { useTransactions } from '../hooks/useTransactions';
 
 type Props = { onNavigate: (tab: 'history' | 'pos' | 'installations') => void };
-
 const money = new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', maximumFractionDigits: 0 });
-
-function toDate(value?: string) {
-  if (!value) return null;
-  const date = parseISO(value);
-  return isValid(date) ? startOfDay(date) : null;
-}
+function toDate(value?: string) { if (!value) return null; const date = parseISO(value); return isValid(date) ? startOfDay(date) : null; }
 
 export default function ActionCenter({ onNavigate }: Props) {
   const { transactions } = useTransactions();
   const today = startOfDay(new Date());
   const nextWeek = addDays(today, 7);
-
   const data = useMemo(() => {
-    const paymentTasks = transactions
-      .filter(t => t.type === 'income' && t.saleOrderDetails?.paymentStatus === 'unpaid')
-      .map(t => {
-        const dueDate = toDate(t.saleOrderDetails?.deliveryDate || t.date) || today;
-        return { id: t.id || `${t.date}-${t.amount}`, customer: t.saleOrderDetails?.customerName || 'ไม่ระบุชื่อลูกค้า', amount: t.amount, dueDate, days: differenceInCalendarDays(dueDate, today) };
-      })
-      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
-
-    const deliveryTasks = transactions
-      .filter(t => t.type === 'income' && t.saleOrderDetails?.deliveryDate)
-      .map(t => ({ id: t.id || `${t.date}-${t.amount}`, customer: t.saleOrderDetails?.customerName || 'ไม่ระบุชื่อลูกค้า', amount: t.amount, date: toDate(t.saleOrderDetails?.deliveryDate)! }))
-      .filter(t => t.date && t.date >= today && t.date <= nextWeek)
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
-
-    return {
-      overdue: paymentTasks.filter(t => t.days < 0),
-      dueToday: paymentTasks.filter(t => t.days === 0),
-      upcomingPayments: paymentTasks.filter(t => t.days > 0 && t.days <= 7),
-      deliveries: deliveryTasks,
-      totalOutstanding: paymentTasks.reduce((sum, t) => sum + t.amount, 0),
-    };
-  }, [transactions]);
-
+    const paymentTasks = transactions.filter(t => t.type === 'income' && t.saleOrderDetails?.paymentStatus === 'unpaid').map(t => {
+      const dueDate = toDate(t.saleOrderDetails?.deliveryDate || t.date) || today;
+      return { id: t.id || `${t.date}-${t.amount}`, customer: t.saleOrderDetails?.customerName || 'ไม่ระบุชื่อลูกค้า', amount: t.amount, dueDate, days: differenceInCalendarDays(dueDate, today) };
+    }).sort((a,b) => a.dueDate.getTime() - b.dueDate.getTime());
+    const deliveries = transactions.filter(t => t.type === 'income' && t.saleOrderDetails?.deliveryDate).map(t => ({ id: t.id || `${t.date}-${t.amount}`, customer: t.saleOrderDetails?.customerName || 'ไม่ระบุชื่อลูกค้า', amount: t.amount, date: toDate(t.saleOrderDetails?.deliveryDate)! })).filter(t => t.date >= today && t.date <= nextWeek).sort((a,b) => a.date.getTime() - b.date.getTime());
+    return { overdue: paymentTasks.filter(t => t.days < 0), dueToday: paymentTasks.filter(t => t.days === 0), upcomingPayments: paymentTasks.filter(t => t.days > 0 && t.days <= 7), deliveries, totalOutstanding: paymentTasks.reduce((sum,t) => sum + t.amount, 0) };
+  }, [transactions, today.getTime(), nextWeek.getTime()]);
   const formatDate = (date: Date) => format(date, 'EEE d MMM', { locale: th });
   const taskCount = data.overdue.length + data.dueToday.length + data.upcomingPayments.length + data.deliveries.length;
-
-  return <div className="space-y-5">
-    <section className="rounded-3xl bg-slate-900 text-white p-5 sm:p-7 shadow-xl overflow-hidden relative">
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div><div className="flex items-center gap-2 text-amber-300 text-xs font-bold uppercase tracking-wider"><ListChecks size={16}/> Action Center</div><h2 className="text-2xl sm:text-3xl font-black mt-2">งานสำคัญที่ต้องจัดการ</h2><p className="text-sm text-slate-300 mt-1">รวมงานเก็บเงินและกำหนดส่งภายใน 7 วัน</p></div>
-        <div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur"><div className="text-[11px] text-slate-300">ยอดค้างรับทั้งหมด</div><div className="text-xl font-black text-amber-300">{money.format(data.totalOutstanding)}</div></div>
-      </div>
-      <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-amber-400/10" />
-    </section>
-
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      <Stat icon={<AlertTriangle size={18}/>} label="เกินกำหนด" value={data.overdue.length} tone="text-rose-600 bg-rose-50 border-rose-100" />
-      <Stat icon={<CircleDollarSign size={18}/>} label="ครบกำหนดวันนี้" value={data.dueToday.length} tone="text-amber-600 bg-amber-50 border-amber-100" />
-      <Stat icon={<Clock3 size={18}/>} label="รอรับเงิน 7 วัน" value={data.upcomingPayments.length} tone="text-blue-600 bg-blue-50 border-blue-100" />
-      <Stat icon={<CalendarDays size={18}/>} label="กำหนดส่ง 7 วัน" value={data.deliveries.length} tone="text-violet-600 bg-violet-50 border-violet-100" />
-    </div>
-
-    <section className="grid lg:grid-cols-2 gap-5">
-      <TaskPanel title="ต้องติดตามการชำระเงิน" subtitle="เรียงจากเร่งด่วนที่สุด" empty="ยอดค้างชำระอยู่ในสถานะปกติ" actionLabel="ดูรายการทั้งหมด" onAction={() => onNavigate('history')}>
-        {[...data.overdue, ...data.dueToday, ...data.upcomingPayments].slice(0, 8).map(task => <div key={task.id} className="flex items-center justify-between gap-3 py-3 border-b border-slate-100 last:border-0"><div className="min-w-0"><div className="font-bold text-sm truncate">{task.customer}</div><div className="text-xs text-slate-400 mt-0.5">{task.days < 0 ? `เกินกำหนด ${Math.abs(task.days)} วัน` : task.days === 0 ? 'ครบกำหนดวันนี้' : `ครบกำหนดใน ${task.days} วัน`} · {formatDate(task.dueDate)}</div></div><div className="text-sm font-black whitespace-nowrap">{money.format(task.amount)}</div></div>)}
-      </TaskPanel>
-      <TaskPanel title="กำหนดส่งที่กำลังมาถึง" subtitle="ภายใน 7 วันข้างหน้า" empty="ยังไม่มีรายการส่งภายใน 7 วัน" actionLabel="ไปที่งานติดตั้ง" onAction={() => onNavigate('installations')}>
-        {data.deliveries.slice(0, 8).map(task => <div key={task.id} className="flex items-center justify-between gap-3 py-3 border-b border-slate-100 last:border-0"><div className="min-w-0"><div className="font-bold text-sm truncate">{task.customer}</div><div className="text-xs text-slate-400 mt-0.5">กำหนด {formatDate(task.date)}</div></div><span className="rounded-lg bg-violet-50 text-violet-700 px-2.5 py-1 text-xs font-bold whitespace-nowrap">{differenceInCalendarDays(task.date, today) === 0 ? 'วันนี้' : `${differenceInCalendarDays(task.date, today)} วัน`}</span></div>)}
-      </TaskPanel>
-    </section>
-
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><div className="font-black text-sm">สรุปวันนี้</div><p className="text-xs text-slate-500 mt-1">มีรายการที่ควรติดตาม {taskCount} รายการ</p></div><div className="flex gap-2"><button onClick={() => onNavigate('history')} className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold hover:bg-slate-50">เปิดรายการ</button><button onClick={() => onNavigate('pos')} className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold">เพิ่มรายการ</button></div></section>
-  </div>;
+  return <div className="space-y-5"><section className="rounded-3xl bg-slate-900 text-white p-5 sm:p-7 shadow-xl overflow-hidden relative"><div className="relative z-10 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4"><div><div className="flex items-center gap-2 text-amber-300 text-xs font-bold uppercase tracking-wider"><ListChecks size={16}/>Action Center</div><h2 className="text-2xl sm:text-3xl font-black mt-2">งานสำคัญที่ต้องจัดการ</h2><p className="text-sm text-slate-300 mt-1">รวมงานเก็บเงินและกำหนดส่งภายใน 7 วัน</p></div><div className="rounded-2xl bg-white/10 px-4 py-3 backdrop-blur"><div className="text-[11px] text-slate-300">ยอดค้างรับทั้งหมด</div><div className="text-xl font-black text-amber-300">{money.format(data.totalOutstanding)}</div></div></div><div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-amber-400/10"/></section><div className="grid grid-cols-2 lg:grid-cols-4 gap-3"><Stat icon={<AlertTriangle size={18}/>} label="เกินกำหนด" value={data.overdue.length} tone="text-rose-600 bg-rose-50 border-rose-100"/><Stat icon={<CircleDollarSign size={18}/>} label="ครบกำหนดวันนี้" value={data.dueToday.length} tone="text-amber-600 bg-amber-50 border-amber-100"/><Stat icon={<Clock3 size={18}/>} label="รอรับเงิน 7 วัน" value={data.upcomingPayments.length} tone="text-blue-600 bg-blue-50 border-blue-100"/><Stat icon={<CalendarDays size={18}/>} label="กำหนดส่ง 7 วัน" value={data.deliveries.length} tone="text-violet-600 bg-violet-50 border-violet-100"/></div><section className="grid lg:grid-cols-2 gap-5"><TaskPanel title="ต้องติดตามการชำระเงิน" subtitle="เรียงจากเร่งด่วนที่สุด" empty="ยอดค้างชำระอยู่ในสถานะปกติ" actionLabel="ดูรายการทั้งหมด" onAction={() => onNavigate('history')}>{[...data.overdue,...data.dueToday,...data.upcomingPayments].slice(0,8).map(task => <div key={task.id} className="flex items-center justify-between gap-3 py-3 border-b border-slate-100 last:border-0"><div className="min-w-0"><div className="font-bold text-sm truncate">{task.customer}</div><div className="text-xs text-slate-400 mt-0.5">{task.days < 0 ? `เกินกำหนด ${Math.abs(task.days)} วัน` : task.days === 0 ? 'ครบกำหนดวันนี้' : `ครบกำหนดใน ${task.days} วัน`} · {formatDate(task.dueDate)}</div></div><div className="text-sm font-black whitespace-nowrap">{money.format(task.amount)}</div></div>)}</TaskPanel><TaskPanel title="กำหนดส่งที่กำลังมาถึง" subtitle="ภายใน 7 วันข้างหน้า" empty="ยังไม่มีรายการส่งภายใน 7 วัน" actionLabel="ไปที่งานติดตั้ง" onAction={() => onNavigate('installations')}>{data.deliveries.slice(0,8).map(task => <div key={task.id} className="flex items-center justify-between gap-3 py-3 border-b border-slate-100 last:border-0"><div className="min-w-0"><div className="font-bold text-sm truncate">{task.customer}</div><div className="text-xs text-slate-400 mt-0.5">กำหนด {formatDate(task.date)}</div></div><span className="rounded-lg bg-violet-50 text-violet-700 px-2.5 py-1 text-xs font-bold whitespace-nowrap">{differenceInCalendarDays(task.date,today)===0?'วันนี้':`${differenceInCalendarDays(task.date,today)} วัน`}</span></div>)}</TaskPanel></section><section className="rounded-2xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"><div><div className="font-black text-sm">สรุปวันนี้</div><p className="text-xs text-slate-500 mt-1">มีรายการที่ควรติดตาม {taskCount} รายการ</p></div><div className="flex gap-2"><button onClick={() => onNavigate('history')} className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold hover:bg-slate-50">เปิดรายการ</button><button onClick={() => onNavigate('pos')} className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold">เพิ่มรายการ</button></div></section></div>;
 }
-
-function Stat({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: number; tone: string }) {
-  return <div className={`rounded-2xl border p-4 ${tone}`}><div className="flex items-center gap-2 text-xs font-bold opacity-80">{icon}{label}</div><div className="text-2xl font-black mt-2">{value}</div></div>;
-}
-
-function TaskPanel({ title, subtitle, empty, actionLabel, onAction, children }: { title: string; subtitle: string; empty: string; actionLabel: string; onAction: () => void; children: React.ReactNode }) {
-  const hasChildren = Array.isArray(children) ? children.length > 0 : !!children;
-  return <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden"><div className="p-4 border-b border-slate-100 flex items-start justify-between gap-3"><div><h3 className="font-black text-base">{title}</h3><p className="text-xs text-slate-400 mt-0.5">{subtitle}</p></div><button onClick={onAction} className="text-xs font-bold text-slate-600 hover:text-slate-900">{actionLabel}</button></div><div className="px-4">{hasChildren ? children : <div className="py-10 text-center text-slate-400"><CheckCircle2 className="mx-auto mb-2 text-emerald-500" size={30}/><p className="text-sm font-bold text-slate-500">{empty}</p></div>}</div></div>;
-}
+function Stat({icon,label,value,tone}:{icon:ReactNode;label:string;value:number;tone:string}){return <div className={`rounded-2xl border p-4 ${tone}`}><div className="flex items-center gap-2 text-xs font-bold opacity-80">{icon}{label}</div><div className="text-2xl font-black mt-2">{value}</div></div>}
+function TaskPanel({title,subtitle,empty,actionLabel,onAction,children}:{title:string;subtitle:string;empty:string;actionLabel:string;onAction:()=>void;children:ReactNode}){const hasChildren=Array.isArray(children)?children.length>0:!!children;return <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden"><div className="p-4 border-b border-slate-100 flex items-start justify-between gap-3"><div><h3 className="font-black text-base">{title}</h3><p className="text-xs text-slate-400 mt-0.5">{subtitle}</p></div><button onClick={onAction} className="text-xs font-bold text-slate-600 hover:text-slate-900">{actionLabel}</button></div><div className="px-4">{hasChildren?children:<div className="py-10 text-center text-slate-400"><CheckCircle2 className="mx-auto mb-2 text-emerald-500" size={30}/><p className="text-sm font-bold text-slate-500">{empty}</p></div>}</div></div>}
