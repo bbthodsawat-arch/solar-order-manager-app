@@ -39,7 +39,7 @@ export default function RecurringTransactionsManager({ onClose }: RecurringTrans
       setType(item.type);
       setCategory(item.category);
       setAmount(item.amount.toString());
-      setDayOfMonth(item.dayOfMonth);
+      setDayOfMonth(item.dayOfMonth ?? 1);
       setDetail(item.detail || '');
     } else {
       setEditingItem(null);

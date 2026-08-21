@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'react-hot-toast';
 import { useAppConfig } from '../hooks/useAppConfig';
 import { useTheme } from '../hooks/useTheme';
+import type { DashboardCardDesignConfig, DashboardCardThemePreset, DashboardCardBorderRadius, DashboardCardShadow } from '../types';
 import { getComputedCardColor, DEFAULT_DASHBOARD_CARD_DESIGN } from '../utils/dashboardCardPresets';
 
 export default function StockReportCard() {
@@ -56,10 +57,11 @@ export default function StockReportCard() {
   const kpiDesign = config?.dashboardCardDesign || DEFAULT_DASHBOARD_CARD_DESIGN;
   const { isDarkMode } = useTheme();
 
-  const activeDesign = stockDesign.useKPISync ? kpiDesign : {
-    themePreset: stockDesign.themePreset,
-    borderRadius: stockDesign.borderRadius,
-    shadowStyle: stockDesign.shadowStyle,
+  const activeDesign: DashboardCardDesignConfig = stockDesign.useKPISync ? kpiDesign : {
+    ...DEFAULT_DASHBOARD_CARD_DESIGN,
+    themePreset: stockDesign.themePreset as DashboardCardThemePreset,
+    borderRadius: stockDesign.borderRadius as DashboardCardBorderRadius,
+    shadowStyle: stockDesign.shadowStyle as DashboardCardShadow,
     enableHoverScale: stockDesign.enableHoverScale,
   };
 

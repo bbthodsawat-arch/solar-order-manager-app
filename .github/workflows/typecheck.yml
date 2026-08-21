@@ -4,72 +4,13 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: write
-
 jobs:
   typecheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: fix/enforce-typecheck-in-production-build
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - name: Repair PR60 contracts
-        run: python scripts/repair-pr60-types.py
       - run: npm run typecheck
-      - run: npm run build
-      - name: Commit validated repairs and restore workflow
-        shell: bash
-        run: |
-          git restore --source=HEAD --worktree dist 2>/dev/null || true
-          git clean -fd dist
-          git restore --source=HEAD --worktree src/pages/AddTransaction.tsx
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('src/pages/AddTransaction.tsx'); s=p.read_text()
-          s=s.replace('  const [customer, setCustomer] = useState(() => {', """  const [customer, setCustomer] = useState<{
-            id?: string; name: string; address: string; district: string; province: string; zipcode: string; phone: string; customerTaxId?: string; customerBranch?: string; customerEmail?: string;
-          }>(() => {""")
-          s=s.replace('  const [payment, setPayment] = useState(() => {', """  const [payment, setPayment] = useState<{
-            status: 'paid' | 'unpaid'; method: string; date: string; receiptUrl: string | undefined;
-          }>(() => {""")
-          s=s.replace('  const [incomeData, setIncomeData] = useState({', """  const [incomeData, setIncomeData] = useState<{
-            category: string; detail: string; amount: string; payer: string; paymentMethod: string; receiptUrl: string | undefined;
-          }>({""")
-          s=s.replace('customerTaxId: customer.customerTaxId.trim()', "customerTaxId: customer.customerTaxId?.trim() || ''")
-          s=s.replace('customerBranch: customer.customerBranch.trim()', "customerBranch: customer.customerBranch?.trim() || ''")
-          s=s.replace('email: customer.customerEmail.trim()', "email: customer.customerEmail?.trim() || ''")
-          p.write_text(s)
-          PY
-          sed -i 's/[[:space:]]\+$//' src/components/dashboard/DashboardMetricCardsGrid.tsx src/pages/SettingsWorkspace.tsx
-          rm -f scripts/repair-pr60-types.py .github/workflows/diagnose-pr60-types.yml
-          cat > .github/workflows/typecheck.yml <<'YAML'
-          name: Strict TypeScript check
-
-          on:
-            pull_request:
-              branches: [main]
-
-          jobs:
-            typecheck:
-              runs-on: ubuntu-latest
-              steps:
-                - uses: actions/checkout@v4
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: 22
-                - run: npm install --no-audit --no-fund
-                - run: npm run typecheck
-          YAML
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/components/AssetManager.tsx src/components/RecurringTransactionsManager.tsx src/components/StockReportCard.tsx src/components/dashboard/DashboardMetricCardsGrid.tsx src/hooks/useAppConfig.ts src/pages/AddTransaction.tsx src/components/ProductInventoryManager.tsx src/pages/Dashboard.tsx src/pages/SettingsWorkspace.tsx .github/workflows/typecheck.yml
-          git add -u
-          git diff --cached --check
-          git commit -m "fix(types): resolve remaining PR60 contracts"
-          git push origin HEAD:fix/enforce-typecheck-in-production-build
