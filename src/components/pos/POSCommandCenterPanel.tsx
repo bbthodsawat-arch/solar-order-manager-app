@@ -14,7 +14,6 @@ function readPending(): PosControlConfig | null { try { const raw = localStorage
 function markPending(value: PosControlConfig) { try { localStorage.setItem(POS_PENDING_KEY, JSON.stringify(value)); } catch {} }
 function clearPending() { try { localStorage.removeItem(POS_PENDING_KEY); } catch {} }
 const writeConfig = (next: PosControlConfig, userId?: string) => {
-  if (!db) return Promise.reject(new Error('Database connection is unavailable'));
   const payload: Record<string, unknown> = { 'config.posControl': next, updated_at: new Date().toISOString() };
   if (userId) payload.updated_by = userId;
   return setDoc(doc(db, 'app_config', 'app'), payload, { merge: true });
@@ -35,12 +34,11 @@ export default function POSCommandCenterPanel() {
     let alive = true;
     (async () => {
       try {
-        if (!db) return;
         const pending = readPending();
         if (pending) {
           setValue(pending);
           setSyncing(true);
-          void writeConfig(pending, user?.id).then(() => { clearPending(); if (alive) { setSyncing(false); setSaving(false); } }).catch(() => { if (alive) { setSyncing(false); setErrorMessage('ยังรอซิงก์การตั้งค่า POS จากครั้งก่อน'); } });
+          void writeConfig(pending, user?.uid).then(() => { clearPending(); if (alive) { setSyncing(false); setSaving(false); } }).catch(() => { if (alive) { setSyncing(false); setErrorMessage('ยังรอซิงก์การตั้งค่า POS จากครั้งก่อน'); } });
           return;
         }
         const snapshot = await getDoc(doc(db, 'app_config', 'app'));
@@ -49,7 +47,7 @@ export default function POSCommandCenterPanel() {
       } catch (error) { console.error('POS command center load failed:', error); }
     })();
     return () => { alive = false; };
-  }, [user?.id]);
+  }, [user?.uid]);
 
   const patch = (next: Partial<PosControlConfig>) => { setValue(v => { const n = { ...v, ...next }; cache(n); return n; }); setErrorMessage(''); setSaved(false); };
   const accents = useMemo(() => [['brand','Brand'],['emerald','Emerald'],['blue','Blue'],['amber','Solar'],['violet','Violet']] as const, []);
@@ -65,7 +63,7 @@ export default function POSCommandCenterPanel() {
     setSyncing(true);
     toast.success('บันทึกการตั้งค่า POS แล้ว', { id: 'pos-save', duration: 1800 });
     window.setTimeout(() => { if (aliveRef.current) setSaved(false); }, 2400);
-    void writeConfig(snapshot, user?.id).then(() => {
+    void writeConfig(snapshot, user?.uid).then(() => {
       clearPending();
       if (!aliveRef.current) return;
       setSyncing(false);
