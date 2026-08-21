@@ -14,7 +14,7 @@ assert(generator.includes("./DocumentGeneratorModalV2"), 'DocumentGeneratorModal
 assert(!generator.includes('transaction.id.slice(-6)'), 'generator must not derive business document numbers from Firestore ID suffixes');
 assert(generator.includes('issueDocumentNumber'), 'generator must reserve a number before print/PDF issuance');
 assert(issuance.includes('runTransaction'), 'document issuance must use a Firestore transaction');
-assert(issuance.includes("['documents', 'archive', 'items', archiveId]"), 'issued documents must have a durable archive record');
+assert(issuance.includes("doc(db, 'documents', 'archive', 'items', archiveId)"), 'issued documents must have a durable archive record');
 assert(issuance.includes('settings.archive'), 'settings archive must remain populated for the existing archive UI');
 assert(issuance.includes('rule.next + 1'), 'running number must advance atomically');
 assert(settings.includes("doc(db,'settings','documentCenter')"), 'document numbering rules must come from the configured Document Center settings');
