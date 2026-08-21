@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist node_modules/.vite",
     "lint": "tsc --noEmit",
-    "test:workflow": "tsx scripts/business-workflow-check.ts"
+    "test:workflow": "tsx scripts/business-workflow-check.ts",
+    "test:document-numbering": "tsx scripts/document-numbering-check.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -31,12 +32,10 @@
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
     "react-hot-toast": "^2.6.0",
+    "qrcode.react": "^4.2.0",
     "recharts": "^3.10.1",
     "tailwindcss": "^4.1.14",
     "thai-address-select": "^1.0.5",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.3"
-  },
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
