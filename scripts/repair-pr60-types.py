@@ -23,11 +23,11 @@ replace('src/components/StockReportCard.tsx', """  const activeDesign = stockDes
     shadowStyle: stockDesign.shadowStyle as DashboardCardShadow,
     enableHoverScale: stockDesign.enableHoverScale,
   };""")
-replace('src/components/dashboard/DashboardMetricCardsGrid.tsx', 'data={sparkData && sparkData.length > 0 ? sparkData : [0, 10, 20, 15, 30]}', 'data={sparkData && sparkData.length > 0 ? sparkData : [{ value: 0 }, { value: 10 }, { value: 20 }, { value: 15 }, { value: 30 }]}')
+replace('src/components/dashboard/DashboardMetricCardsGrid.tsx', 'data={sparkData && sparkData.length > 0 ? sparkData : [0, 10, 20, 15, 30]}', 'data={sparkData && sparkData.length > 0 ? sparkData.map(value => ({ value })) : [{ value: 0 }, { value: 10 }, { value: 20 }, { value: 15 }, { value: 30 }]}')
 p = Path('src/hooks/useAppConfig.ts')
 p.write_text(p.read_text().replace('updated_by:user.id', 'updated_by:user.uid'))
 replace('src/pages/AddTransaction.tsx', '  const [customer, setCustomer] = useState(() => {', """  const [customer, setCustomer] = useState<{
-    id: string; name: string; address: string; district: string; province: string; zipcode: string; phone: string; customerTaxId: string; customerBranch: string; customerEmail: string;
+    id?: string; name: string; address: string; district: string; province: string; zipcode: string; phone: string; customerTaxId?: string; customerBranch?: string; customerEmail?: string;
   }>(() => {""")
 replace('src/pages/AddTransaction.tsx', '  const [payment, setPayment] = useState(() => {', """  const [payment, setPayment] = useState<{
     status: 'paid' | 'unpaid'; method: string; date: string; receiptUrl: string | undefined;
@@ -35,6 +35,7 @@ replace('src/pages/AddTransaction.tsx', '  const [payment, setPayment] = useStat
 replace('src/pages/AddTransaction.tsx', '  const [incomeData, setIncomeData] = useState({', """  const [incomeData, setIncomeData] = useState<{
     category: string; detail: string; amount: string; payer: string; paymentMethod: string; receiptUrl: string | undefined;
   }>({""")
+replace('src/components/ProductInventoryManager.tsx', '  onUpdateCategories: (categories: ProductCategory[]) => void;', '  onUpdateCategories?: (categories: ProductCategory[]) => void;')
 replace('src/components/ProductInventoryManager.tsx', "  onDeleteProduct: (categoryId: string, itemId: string) => Promise<void>;\n}", "  onDeleteProduct: (categoryId: string, itemId: string) => Promise<void>;\n  onAdjustStock?: (categoryId: string, itemId: string, delta: number) => Promise<void>;\n}")
 replace('src/components/ProductInventoryManager.tsx', '  onDeleteProduct\n}) => {', '  onDeleteProduct,\n  onAdjustStock: _onAdjustStock\n}) => {')
 p = Path('src/pages/Dashboard.tsx')
