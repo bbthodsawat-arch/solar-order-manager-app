@@ -24,6 +24,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: TypeScript check
         run: npm run lint
+      - name: Business workflow checks
+        run: npm run test:workflow
       - name: Production build
         run: npm run build
       - name: Start production server on configured port

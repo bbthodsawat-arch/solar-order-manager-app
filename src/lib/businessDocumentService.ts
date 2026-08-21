@@ -20,7 +20,7 @@ export type BusinessDocumentSettings = {
 };
 
 export type DocumentContext = {
-  orderId: string;
+  orderId?: string;
   customerId?: string;
   customerName?: string;
   paymentStatus?: string;
@@ -56,39 +56,42 @@ export function nextDocumentRule(rule: DocumentNumberRule): DocumentNumberRule {
 
 /**
  * Calculates which downstream documents should exist for an order.
- * This keeps workflow decisions in one place so POS, Order and Command Center
- * do not each implement their own copy of the business rules.
+ * A quote context may intentionally have no orderId yet; in that case callers
+ * can use getWorkflowNextStep() to create the order before requesting documents.
  */
 export function getRequiredDocuments(
   context: DocumentContext,
   workflow: DocumentWorkflowConfig,
 ): DocumentCandidate[] {
   const result: DocumentCandidate[] = [];
+  const orderId = context.orderId?.trim();
+  if (!orderId) return result;
+
   const customerName = context.customerName?.trim() || 'ลูกค้าทั่วไป';
 
-  result.push({ type: 'order', orderId: context.orderId, customerId: context.customerId, customerName, reason: 'ทุก Order ต้องมีเอกสารคำสั่งซื้อ' });
+  result.push({ type: 'order', orderId, customerId: context.customerId, customerName, reason: 'ทุก Order ต้องมีเอกสารคำสั่งซื้อ' });
 
   if (workflow.paymentReceipt && ['paid', 'partial'].includes(String(context.paymentStatus).toLowerCase())) {
-    result.push({ type: 'receipt', orderId: context.orderId, customerId: context.customerId, customerName, reason: 'มีการรับชำระเงิน' });
+    result.push({ type: 'receipt', orderId, customerId: context.customerId, customerName, reason: 'มีการรับชำระเงิน' });
   }
 
   if (workflow.shippingNote && ['shipping', 'delivered', 'completed'].includes(String(context.shippingStatus).toLowerCase())) {
-    result.push({ type: 'delivery', orderId: context.orderId, customerId: context.customerId, customerName, reason: 'Order เข้ากระบวนการจัดส่ง' });
+    result.push({ type: 'delivery', orderId, customerId: context.customerId, customerName, reason: 'Order เข้ากระบวนการจัดส่ง' });
   }
 
   if (workflow.installationHandover && ['completed', 'done'].includes(String(context.installationStatus).toLowerCase())) {
-    result.push({ type: 'installation', orderId: context.orderId, customerId: context.customerId, customerName, reason: 'งานติดตั้งเสร็จและพร้อมตรวจรับ' });
+    result.push({ type: 'installation', orderId, customerId: context.customerId, customerName, reason: 'งานติดตั้งเสร็จและพร้อมตรวจรับ' });
   }
 
   if (workflow.warrantyCertificate && ['completed', 'done'].includes(String(context.installationStatus).toLowerCase())) {
-    result.push({ type: 'warranty', orderId: context.orderId, customerId: context.customerId, customerName, reason: 'งานติดตั้งเสร็จและควรออกใบรับประกัน' });
+    result.push({ type: 'warranty', orderId, customerId: context.customerId, customerName, reason: 'งานติดตั้งเสร็จและควรออกใบรับประกัน' });
   }
 
   return result;
 }
 
 export function getWorkflowNextStep(context: DocumentContext, workflow: DocumentWorkflowConfig): string {
-  if (workflow.quoteToOrder && !context.orderId) return 'สร้าง Order จากใบเสนอราคา';
+  if (workflow.quoteToOrder && !context.orderId?.trim()) return 'สร้าง Order จากใบเสนอราคา';
   if (workflow.paymentReceipt && ['paid', 'partial'].includes(String(context.paymentStatus).toLowerCase())) return 'ตรวจสอบ/ออกใบเสร็จ';
   if (workflow.shippingNote && ['shipping', 'delivered', 'completed'].includes(String(context.shippingStatus).toLowerCase())) return 'ตรวจสอบใบส่งสินค้า/ส่งมอบ';
   if (workflow.installationHandover && ['completed', 'done'].includes(String(context.installationStatus).toLowerCase())) return 'ตรวจรับงานติดตั้ง';
