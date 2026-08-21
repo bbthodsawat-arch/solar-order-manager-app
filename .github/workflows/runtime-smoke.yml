@@ -26,6 +26,8 @@ jobs:
         run: npm run lint
       - name: Business workflow checks
         run: npm run test:workflow
+      - name: Document numbering regression checks
+        run: npm run test:document-numbering
       - name: Production build
         run: npm run build
       - name: Start production server on configured port
