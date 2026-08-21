@@ -22,9 +22,11 @@ export function logAuditEvent(params: LogAuditParams): Promise<void> {
 
   try {
     const currentUser = auth?.currentUser;
-    const userId = params.user?.uid || currentUser?.uid || 'system';
-    const userEmail = params.user?.email || currentUser?.email || 'system@local';
-    const userDisplayName = params.user?.displayName || currentUser?.displayName ||
+    if (!currentUser) return Promise.resolve();
+
+    const userId = currentUser.uid;
+    const userEmail = currentUser.email || 'unknown@local';
+    const userDisplayName = currentUser.displayName ||
       (userEmail.includes('@') ? userEmail.split('@')[0] : 'System User');
     const userRole = params.user?.role || 'staff';
 
