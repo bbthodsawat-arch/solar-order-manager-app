@@ -1,1 +1,0 @@
-TypeScript release cleanup marker.
