@@ -1,0 +1,23 @@
+name: Production health monitor
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify production health endpoint
+        env:
+          HEALTH_URL: https://solar-order-manager-app.vercel.app/api/health
+        run: |
+          set -euo pipefail
+          body=$(curl --fail --silent --show-error --retry 3 --retry-all-errors --connect-timeout 10 --max-time 30 "$HEALTH_URL")
+          printf '%s\n' "$body"
+          printf '%s' "$body" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const v=JSON.parse(s);if(v.status!=="ok") process.exit(1)})'
