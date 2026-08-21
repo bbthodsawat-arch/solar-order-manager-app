@@ -18,4 +18,5 @@ jobs:
       - run: npm run test:workflow
       - run: npm run test:document-numbering
       - run: npm run lint
+      - run: npm run typecheck
       - run: npm run build
