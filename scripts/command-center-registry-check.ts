@@ -11,6 +11,7 @@ assert.equal(new Set(COMMAND_REGISTRY.map(command => command.id)).size, COMMAND_
 for (const command of COMMAND_REGISTRY) assert.ok(COMMAND_DOMAINS.some(domain => domain.id === command.domain), `unknown domain: ${command.domain}`);
 for (const id of ['business.profile', 'business.brand', 'business.documents']) assert.ok(COMMAND_REGISTRY.some(command => command.id === id), `missing business migration command: ${id}`);
 assert.equal(existsSync('src/pages/CommandCenter.tsx'), false, 'superseded legacy CommandCenter must remain removed');
+assert.equal(existsSync('src/pages/SettingsWorkspace.tsx'), false, 'superseded legacy SettingsWorkspace must remain removed');
 
 const staff: AppUser = { uid:'staff', email:null, displayName:'Staff', photoURL:null, role:'staff', status:'active', createdAt:'' };
 const admin: AppUser = { ...staff, uid:'admin', role:'admin' };
