@@ -1,107 +1,28 @@
 import { doc, getDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { toast } from 'react-hot-toast';
-
 export type DbProvider = 'local' | 'firebase';
 export interface DbHealthStatus { local: { status: 'healthy' | 'warning'; message: string }; firebase: { status: 'healthy' | 'error' | 'offline'; latencyMs: number; message: string }; }
 export interface SyncStats { transactions: number; customers: number; appointments: number; warranties: number; quickNotes: number; }
 export interface DbSyncError { id: string; timestamp: string; source: 'local' | 'firebase' | 'network'; errorType: string; errorMessage: string; autoFailoverTriggered: boolean; }
-
 type SubscriberCallback = (state: { preferredProvider: DbProvider; actualProvider: DbProvider; autoFailover: boolean; health: DbHealthStatus }) => void;
-const subscribers = new Set<SubscriberCallback>();
-const storedProvider = typeof localStorage !== 'undefined' ? localStorage.getItem('solar_preferred_database_mode') : null;
-let preferredProvider: DbProvider = storedProvider === 'local' ? 'local' : 'firebase';
-let actualProvider: DbProvider = 'firebase';
-let healthStatus: DbHealthStatus = { local: { status: 'healthy', message: 'พร้อมใช้งานเป็น offline queue/cache' }, firebase: { status: 'healthy', latencyMs: 0, message: 'รอตรวจสอบการเชื่อมต่อ' } };
-let queueFlushPromise: Promise<number> | null = null;
-
+const subscribers = new Set<SubscriberCallback>(); const storedProvider = typeof localStorage !== 'undefined' ? localStorage.getItem('solar_preferred_database_mode') : null; let preferredProvider: DbProvider = storedProvider === 'local' ? 'local' : 'firebase'; let actualProvider: DbProvider = 'firebase'; let healthStatus: DbHealthStatus = { local: { status: 'healthy', message: 'พร้อมใช้งานเป็น offline queue/cache' }, firebase: { status: 'healthy', latencyMs: 0, message: 'รอตรวจสอบการเชื่อมต่อ' } }; let queueFlushPromise: Promise<number> | null = null;
 function notifySubscribers() { const state = { preferredProvider, actualProvider, autoFailover: false, health: healthStatus }; subscribers.forEach(cb => { try { cb(state); } catch (err) { console.error('Database subscriber error:', err); } }); }
 function recalculateActualProvider() { actualProvider = typeof navigator !== 'undefined' && !navigator.onLine ? 'local' : preferredProvider; }
 function parseQueue(): any[] { try { const parsed = JSON.parse(localStorage.getItem('offline_transactions_queue') || '[]'); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
 function persistQueue(items: any[]) { localStorage.setItem('offline_transactions_queue', JSON.stringify(items)); if (typeof window !== 'undefined') window.dispatchEvent(new Event('solar_offline_queue_changed')); }
 function snapshotItem(item: any) { return JSON.stringify(item); }
 function cleanTransaction(item: any) { const cleanItem = { ...item }; delete cleanItem.id; delete cleanItem.hasPendingWrites; return JSON.parse(JSON.stringify(cleanItem)); }
-
-/** Mutate the latest persisted queue so rapid UI actions never overwrite each other with stale React state. */
 function mutateQueue(mutator: (items: any[]) => any[]) { const next = mutator(parseQueue()); persistQueue(next); return next; }
-
-/**
- * Flush with deterministic IDs. Firestore batches are capped below 500 writes, and
- * reconciliation removes an item only when the latest queue still matches the exact
- * snapshot that was committed. A concurrent edit of the same ID therefore survives.
- */
-async function flushOfflineTransactionQueue(): Promise<number> {
-  if (queueFlushPromise) return queueFlushPromise;
-  queueFlushPromise = (async () => {
-    const localQueue = parseQueue().filter(item => item?.id);
-    if (!localQueue.length) return 0;
-    const snapshotById = new Map(localQueue.map(item => [String(item.id), snapshotItem(item)]));
-    let count = 0;
-    for (let start = 0; start < localQueue.length; start += 450) {
-      const batch = writeBatch(db);
-      for (const item of localQueue.slice(start, start + 450)) {
-        batch.set(doc(db, 'transactions', String(item.id)), cleanTransaction(item), { merge: true });
-      }
-      await batch.commit();
-      count += Math.min(450, localQueue.length - start);
-    }
-    const latestQueue = parseQueue();
-    const remaining = latestQueue.filter(item => snapshotById.get(String(item?.id)) !== snapshotItem(item));
-    persistQueue(remaining);
-    return count;
-  })().finally(() => { queueFlushPromise = null; });
-  return queueFlushPromise;
-}
-
+async function flushOfflineTransactionQueue(): Promise<number> { if (queueFlushPromise) return queueFlushPromise; queueFlushPromise = (async () => { const localQueue = parseQueue().filter(item => item?.id); if (!localQueue.length) return 0; const snapshotById = new Map(localQueue.map(item => [String(item.id), snapshotItem(item)])); let count = 0; for (let start = 0; start < localQueue.length; start += 450) { const batch = writeBatch(db); for (const item of localQueue.slice(start, start + 450)) batch.set(doc(db, 'transactions', String(item.id)), cleanTransaction(item), { merge: true }); await batch.commit(); count += Math.min(450, localQueue.length - start); } const latestQueue = parseQueue(); const remaining = latestQueue.filter(item => snapshotById.get(String(item?.id)) !== snapshotItem(item)); persistQueue(remaining); return count; })().finally(() => { queueFlushPromise = null; }); return queueFlushPromise; }
 export const dbManager = {
-  getPreferredProvider(): DbProvider { return preferredProvider; },
-  getActualProvider(): DbProvider { return actualProvider; },
-  isAutoFailoverEnabled(): boolean { return false; },
-  getHealthStatus(): DbHealthStatus { return healthStatus; },
-  getLastSyncSuccessTimestamps(): { local: string | null; firebase: string | null } { return { local: localStorage.getItem('solar_last_sync_success_local'), firebase: localStorage.getItem('solar_last_sync_success_firebase') }; },
-  readOfflineQueue<T = any>(): T[] { return parseQueue() as T[]; },
-  enqueueOfflineTransaction<T extends { id: string }>(item: T): T[] { return mutateQueue(items => [...items.filter(existing => String(existing?.id) !== String(item.id)), item]) as T[]; },
-  updateOfflineQueueTransaction<T extends { id: string }>(id: string, updates: Partial<T>): T[] { return mutateQueue(items => items.map(item => String(item?.id) === id ? { ...item, ...updates } : item)) as T[]; },
-  removeOfflineQueueTransaction<T = any>(id: string): T[] { return mutateQueue(items => items.filter(item => String(item?.id) !== id)) as T[]; },
-  clearOfflineQueue() { persistQueue([]); },
-  setPreferredProvider(provider: DbProvider) { preferredProvider = provider === 'local' ? 'local' : 'firebase'; localStorage.setItem('solar_preferred_database_mode', preferredProvider); recalculateActualProvider(); notifySubscribers(); },
-  setAutoFailover(_enabled: boolean) { localStorage.setItem('solar_auto_failover_enabled', 'false'); notifySubscribers(); },
-  subscribe(callback: SubscriberCallback) { subscribers.add(callback); callback({ preferredProvider, actualProvider, autoFailover: false, health: healthStatus }); return () => subscribers.delete(callback); },
-  async runDiagnostics(): Promise<DbHealthStatus> {
-    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-    healthStatus.local = { status: 'healthy', message: `Offline queue พร้อมใช้งาน (${parseQueue().length} รายการ)` };
-    if (!isOnline) { healthStatus.firebase = { status: 'offline', latencyMs: 0, message: 'อุปกรณ์ออฟไลน์ — ใช้ Firebase SDK offline queue/cache' }; actualProvider = 'local'; notifySubscribers(); return healthStatus; }
-    const started = Date.now();
-    try { await getDoc(doc(db, 'config', 'app')); const latencyMs = Date.now() - started; healthStatus.firebase = { status: 'healthy', latencyMs, message: `เชื่อมต่อ Firebase Firestore สำเร็จ (${latencyMs}ms)` }; localStorage.setItem('solar_last_sync_success_firebase', new Date().toISOString()); actualProvider = 'firebase'; }
-    catch (error: any) { const latencyMs = Date.now() - started; healthStatus.firebase = { status: 'error', latencyMs, message: `Firebase error: ${error?.message || 'Unreachable'}` }; actualProvider = 'local'; this.addErrorLog('firebase', 'Ping Failed', healthStatus.firebase.message, false); }
-    notifySubscribers(); return healthStatus;
-  },
-  async flushOfflineQueue(): Promise<number> {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return 0;
-    await this.runDiagnostics();
-    if (healthStatus.firebase.status !== 'healthy') throw new Error('Firebase Firestore ไม่พร้อมใช้งาน');
-    const count = await flushOfflineTransactionQueue();
-    if (count > 0) { localStorage.setItem('solar_last_sync_success_local', new Date().toISOString()); localStorage.setItem('solar_last_sync_success_firebase', new Date().toISOString()); }
-    return count;
-  },
-  async syncDatabases(): Promise<{ success: boolean; stats: SyncStats }> {
-    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-    const stats: SyncStats = { transactions: 0, customers: 0, appointments: 0, warranties: 0, quickNotes: 0 };
-    if (!isOnline) throw new Error('อุปกรณ์ออฟไลน์: Firestore SDK จะเก็บงานไว้ใน offline queue/cache');
-    const toastId = toast.loading('กำลังซิงค์ข้อมูลกับ Firebase Firestore...');
-    try { stats.transactions = await this.flushOfflineQueue(); await this.runDiagnostics(); toast.success('☁️ ซิงค์กับ Firebase Firestore สำเร็จ', { id: toastId }); return { success: true, stats }; }
-    catch (error: any) { const message = error?.message || 'ระบบขัดข้อง'; this.addErrorLog('firebase', 'Sync Error', message, false); toast.error(`การซิงค์ Firebase ล้มเหลว: ${message}`, { id: toastId }); return { success: false, stats }; }
-  },
-  getErrorLogs(): DbSyncError[] { try { return JSON.parse(localStorage.getItem('solar_db_sync_errors') || '[]'); } catch { return []; } },
-  clearErrorLogs() { localStorage.setItem('solar_db_sync_errors', '[]'); notifySubscribers(); },
-  addErrorLog(source: DbSyncError['source'], errorType: string, errorMessage: string, autoFailoverTriggered: boolean) {
-    try { const logs = this.getErrorLogs(); const newLog: DbSyncError = { id: `err_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, timestamp: new Date().toISOString(), source, errorType, errorMessage, autoFailoverTriggered }; localStorage.setItem('solar_db_sync_errors', JSON.stringify([newLog, ...logs].slice(0, 50))); notifySubscribers(); }
-    catch (error) { console.error('Failed to save database error log:', error); }
-  },
+  getPreferredProvider(): DbProvider { return preferredProvider; }, getActualProvider(): DbProvider { return actualProvider; }, isAutoFailoverEnabled(): boolean { return false; }, getHealthStatus(): DbHealthStatus { return healthStatus; }, getLastSyncSuccessTimestamps(): { local: string | null; firebase: string | null } { return { local: localStorage.getItem('solar_last_sync_success_local'), firebase: localStorage.getItem('solar_last_sync_success_firebase') }; }, readOfflineQueue<T = any>(): T[] { return parseQueue() as T[]; },
+  enqueueOfflineTransaction<T extends { id?: string }>(item: T): T[] { if (!item.id) throw new Error('Offline transaction requires an ID'); return mutateQueue(items => [...items.filter(existing => String(existing?.id) !== String(item.id)), item]) as T[]; },
+  updateOfflineQueueTransaction<T extends { id?: string }>(id: string, updates: Partial<T>): T[] { return mutateQueue(items => items.map(item => String(item?.id) === id ? { ...item, ...updates } : item)) as T[]; }, removeOfflineQueueTransaction<T = any>(id: string): T[] { return mutateQueue(items => items.filter(item => String(item?.id) !== id)) as T[]; }, clearOfflineQueue() { persistQueue([]); },
+  setPreferredProvider(provider: DbProvider) { preferredProvider = provider === 'local' ? 'local' : 'firebase'; localStorage.setItem('solar_preferred_database_mode', preferredProvider); recalculateActualProvider(); notifySubscribers(); }, setAutoFailover(_enabled: boolean) { localStorage.setItem('solar_auto_failover_enabled', 'false'); notifySubscribers(); }, subscribe(callback: SubscriberCallback) { subscribers.add(callback); callback({ preferredProvider, actualProvider, autoFailover: false, health: healthStatus }); return () => subscribers.delete(callback); },
+  async runDiagnostics(): Promise<DbHealthStatus> { const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true; healthStatus.local = { status: 'healthy', message: `Offline queue พร้อมใช้งาน (${parseQueue().length} รายการ)` }; if (!isOnline) { healthStatus.firebase = { status: 'offline', latencyMs: 0, message: 'อุปกรณ์ออฟไลน์ — ใช้ Firebase SDK offline queue/cache' }; actualProvider = 'local'; notifySubscribers(); return healthStatus; } const started = Date.now(); try { await getDoc(doc(db, 'config', 'app')); const latencyMs = Date.now() - started; healthStatus.firebase = { status: 'healthy', latencyMs, message: `เชื่อมต่อ Firebase Firestore สำเร็จ (${latencyMs}ms)` }; localStorage.setItem('solar_last_sync_success_firebase', new Date().toISOString()); actualProvider = 'firebase'; } catch (error: any) { const latencyMs = Date.now() - started; healthStatus.firebase = { status: 'error', latencyMs, message: `Firebase error: ${error?.message || 'Unreachable'}` }; actualProvider = 'local'; this.addErrorLog('firebase', 'Ping Failed', healthStatus.firebase.message, false); } notifySubscribers(); return healthStatus; },
+  async flushOfflineQueue(): Promise<number> { if (typeof navigator !== 'undefined' && !navigator.onLine) return 0; await this.runDiagnostics(); if (healthStatus.firebase.status !== 'healthy') throw new Error('Firebase Firestore ไม่พร้อมใช้งาน'); const count = await flushOfflineTransactionQueue(); if (count > 0) { localStorage.setItem('solar_last_sync_success_local', new Date().toISOString()); localStorage.setItem('solar_last_sync_success_firebase', new Date().toISOString()); } return count; },
+  async syncDatabases(): Promise<{ success: boolean; stats: SyncStats }> { const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true; const stats: SyncStats = { transactions: 0, customers: 0, appointments: 0, warranties: 0, quickNotes: 0 }; if (!isOnline) throw new Error('อุปกรณ์ออฟไลน์: Firestore SDK จะเก็บงานไว้ใน offline queue/cache'); const toastId = toast.loading('กำลังซิงค์ข้อมูลกับ Firebase Firestore...'); try { stats.transactions = await this.flushOfflineQueue(); await this.runDiagnostics(); toast.success('☁️ ซิงค์กับ Firebase Firestore สำเร็จ', { id: toastId }); return { success: true, stats }; } catch (error: any) { const message = error?.message || 'ระบบขัดข้อง'; this.addErrorLog('firebase', 'Sync Error', message, false); toast.error(`การซิงค์ Firebase ล้มเหลว: ${message}`, { id: toastId }); return { success: false, stats }; } },
+  getErrorLogs(): DbSyncError[] { try { return JSON.parse(localStorage.getItem('solar_db_sync_errors') || '[]'); } catch { return []; } }, clearErrorLogs() { localStorage.setItem('solar_db_sync_errors', '[]'); notifySubscribers(); }, addErrorLog(source: DbSyncError['source'], errorType: string, errorMessage: string, autoFailoverTriggered: boolean) { try { const logs = this.getErrorLogs(); const newLog: DbSyncError = { id: `err_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, timestamp: new Date().toISOString(), source, errorType, errorMessage, autoFailoverTriggered }; localStorage.setItem('solar_db_sync_errors', JSON.stringify([newLog, ...logs].slice(0, 50))); notifySubscribers(); } catch (error) { console.error('Failed to save database error log:', error); } },
 };
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => { void dbManager.runDiagnostics().then(() => dbManager.flushOfflineQueue()).catch(error => dbManager.addErrorLog('network', 'Automatic Queue Flush Failed', error instanceof Error ? error.message : String(error), false)); });
-  window.addEventListener('offline', () => { void dbManager.runDiagnostics(); });
-  setTimeout(() => { void dbManager.runDiagnostics().then(() => dbManager.flushOfflineQueue()).catch(() => undefined); }, 1000);
-}
+if (typeof window !== 'undefined') { window.addEventListener('online', () => { void dbManager.runDiagnostics().then(() => dbManager.flushOfflineQueue()).catch(error => dbManager.addErrorLog('network', 'Automatic Queue Flush Failed', error instanceof Error ? error.message : String(error), false)); }); window.addEventListener('offline', () => { void dbManager.runDiagnostics(); }); setTimeout(() => { void dbManager.runDiagnostics().then(() => dbManager.flushOfflineQueue()).catch(() => undefined); }, 1000); }
