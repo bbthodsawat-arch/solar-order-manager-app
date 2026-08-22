@@ -11,7 +11,7 @@ export const BUSINESS_MIGRATION_COMMANDS: CommandDefinition[] = [
   { id:'business.profile', domain:'business', title:'ข้อมูลธุรกิจ', description:'ข้อมูลกิจการ บริษัท ที่อยู่ และข้อมูลพื้นฐาน', keywords:['business','company','profile','บริษัท'], permission:'canManageSettings', legacySection:'business' },
   { id:'business.brand', domain:'business', title:'แบรนด์และอัตลักษณ์', description:'จัดการแบรนด์ โลโก้ และข้อมูลที่ใช้กับสินค้า', keywords:['brand','branding','logo','แบรนด์','โลโก้'], permission:'canManageSettings', legacySection:'branding', quickAction:true },
   { id:'business.payment', domain:'business', title:'ช่องทางการชำระเงิน', description:'จัดการช่องทางชำระเงินและค่าเริ่มต้น', keywords:['payment','payments','ชำระเงิน'], permission:'canManageSettings', legacySection:'branding', quickAction:true },
-  { id:'business.documents', domain:'business', title:'ศูนย์เอกสารธุรกิจ', description:'Template เลขที่เอกสาร workflow และ archive', keywords:['document','template','numbering','workflow','archive','เอกสาร'], permission:'canManageSettings', legacySection:'templates' },
+  { id:'business.documents', domain:'business', title:'ศูนย์เอกสารธุรกิจ', description:'Template เลขที่เอกสาร workflow และ archive', keywords:['document','template','numbering','workflow','archive','เอกสาร'], permission:'canManageDatabase', legacySection:'templates' },
 ];
 
 interface Props {
