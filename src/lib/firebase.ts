@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp, deleteApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, signOut as firebaseSignOut, type User, setPersistence, browserSessionPersistence, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentSingleTabManager, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const productionFirebaseConfig = {
   apiKey: 'AIzaSyCug9CdKSMg3ki-wufXLv3oyThImjyc9fg',
@@ -24,7 +24,22 @@ const firebaseConfig = {
 
 export const firebaseApp: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
-export const db = getFirestore(firebaseApp);
+
+/** Persist Firestore's local cache so queued writes and cached state survive a reload.
+ * If persistence cannot be initialized (for example HMR/tests or an unsupported browser),
+ * safely reuse the existing Firestore instance rather than blocking application startup. */
+function createFirestore() {
+  try {
+    return initializeFirestore(firebaseApp, {
+      localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() }),
+    });
+  } catch (error) {
+    console.warn('[Firebase] Persistent Firestore cache unavailable; reusing existing Firestore instance.', error);
+    return getFirestore(firebaseApp);
+  }
+}
+
+export const db = createFirestore();
 
 void setPersistence(auth, browserSessionPersistence).catch((error) => {
   console.warn('[Firebase auth persistence] session persistence unavailable:', error);
