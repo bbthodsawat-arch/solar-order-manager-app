@@ -1,5 +1,5 @@
-import { collection, deleteDoc, doc, getDoc, getDocs, writeBatch } from 'firebase/firestore';
-import { db } from './firebase';
+import { collection, deleteDoc, doc, getDoc, getDocs, writeBatch, clearIndexedDbPersistence, terminate } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import { getFirebaseStore } from './firebaseStore';
 import { DEFAULT_ASSETS, DEFAULT_BOTTOM_NAV_CONFIG, DEFAULT_DASHBOARD_CARD_DESIGN, DEFAULT_DISPLAY_DENSITY, DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_CATEGORIES, DEFAULT_PAYMENT_METHODS, DEFAULT_PAYMENT_STATUSES, DEFAULT_PRODUCT_CATEGORIES, DEFAULT_SHOP_INFO, DEFAULT_STANDARD_SETS, DEFAULT_SYSTEM_TAGS, DEFAULT_THEME, DEFAULT_WIDGET_CONFIG } from '../hooks/useAppConfig';
 import type { AppConfig } from '../types';
@@ -8,6 +8,24 @@ export const FACTORY_RESET_COLLECTIONS = ['transactions','customers','appointmen
 export type FactoryResetCollection = typeof FACTORY_RESET_COLLECTIONS[number];
 export type FactoryResetProgress = { collection: FactoryResetCollection | 'app_config'; completed: number; total: number; phase: 'deleting' | 'verifying' | 'complete' };
 const BATCH_LIMIT = 450;
+const OWNER_EMAIL = 'b.b.thodsawat@gmail.com';
+
+/** Authorize again at execution time; the destructive service must not rely only on UI visibility. */
+export async function assertFactoryResetAuthorized(): Promise<void> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error('Factory reset requires an authenticated user');
+  if (currentUser.email?.toLowerCase() === OWNER_EMAIL) return;
+
+  const profile = await getDoc(doc(db, 'users', currentUser.uid));
+  const data = profile.exists() ? profile.data() : null;
+  const role = data?.role;
+  const status = data?.status ?? 'active';
+  const permissions = data?.permissions ?? {};
+  const isAdminOrOwner = role === 'admin' || role === 'owner';
+  if (status !== 'active' || !isAdminOrOwner || permissions.canManageDatabase !== true || permissions.canManageSettings !== true) {
+    throw new Error('Factory reset requires an active Admin/Owner with database and settings permissions');
+  }
+}
 
 async function deleteCollectionInBatches(collectionName: FactoryResetCollection, onProgress?: (progress: FactoryResetProgress) => void): Promise<number> {
   const snapshot = await getDocs(collection(db, collectionName));
@@ -28,12 +46,14 @@ async function deleteCollectionInBatches(collectionName: FactoryResetCollection,
 }
 
 export async function resetBusinessData(onProgress?: (progress: FactoryResetProgress) => void): Promise<Record<FactoryResetCollection, number>> {
+  await assertFactoryResetAuthorized();
   const counts = {} as Record<FactoryResetCollection, number>;
   for (const collectionName of FACTORY_RESET_COLLECTIONS) counts[collectionName] = await deleteCollectionInBatches(collectionName, onProgress);
   return counts;
 }
 
 export async function resetAppConfigToFactoryDefaults(userId: string): Promise<void> {
+  await assertFactoryResetAuthorized();
   const factoryConfig: AppConfig = {
     incomeCategories: DEFAULT_INCOME_CATEGORIES,
     expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
@@ -61,13 +81,24 @@ export async function resetAppConfigToFactoryDefaults(userId: string): Promise<v
   if (!verify.exists() || !verify.data()?.config) throw new Error('Factory reset verification failed: app configuration was not persisted');
 }
 
-export async function deleteLegacyConfigDocument(): Promise<void> { await deleteDoc(doc(db, 'config', 'app')); }
+export async function deleteLegacyConfigDocument(): Promise<void> {
+  await assertFactoryResetAuthorized();
+  await deleteDoc(doc(db, 'config', 'app'));
+}
 
+/** Clears browser state and the persistent Firestore IndexedDB cache before reload. */
 export async function clearLocalApplicationState(): Promise<void> {
   localStorage.clear();
   sessionStorage.clear();
   if (typeof caches !== 'undefined') {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+  }
+  try {
+    await terminate(db);
+    await clearIndexedDbPersistence(db);
+  } catch (error) {
+    // Cache cleanup is best-effort; the server-side reset is already verified.
+    console.warn('[Factory reset] Firestore local cache cleanup was unavailable:', error);
   }
 }
