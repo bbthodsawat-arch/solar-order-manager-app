@@ -24,9 +24,12 @@ let queueFlushPromise: Promise<number> | null = null;
 function notifySubscribers() { const state = { preferredProvider, actualProvider, autoFailover: false, health: healthStatus }; subscribers.forEach(cb => { try { cb(state); } catch (err) { console.error('Database subscriber error:', err); } }); }
 function recalculateActualProvider() { actualProvider = typeof navigator !== 'undefined' && !navigator.onLine ? 'local' : preferredProvider; }
 function parseQueue(): any[] { try { return JSON.parse(localStorage.getItem('offline_transactions_queue') || '[]'); } catch { return []; } }
+function persistQueue(items: any[]) { localStorage.setItem('offline_transactions_queue', JSON.stringify(items)); window.dispatchEvent(new Event('solar_offline_queue_changed')); }
 
-/** Flushes the shared transaction queue with deterministic document IDs.
- * Repeated/concurrent attempts are idempotent because every queued item keeps its local ID.
+/**
+ * Flush the shared transaction queue with deterministic document IDs.
+ * The queue is reconciled after commit instead of blindly cleared, so a new item
+ * appended while a flush is in flight cannot be lost by a stale snapshot.
  */
 async function flushOfflineTransactionQueue(): Promise<number> {
   if (queueFlushPromise) return queueFlushPromise;
@@ -34,6 +37,7 @@ async function flushOfflineTransactionQueue(): Promise<number> {
     const localQueue = parseQueue();
     if (!localQueue.length) return 0;
     const batch = writeBatch(db);
+    const syncedIds = new Set<string>();
     let count = 0;
     for (const item of localQueue) {
       if (!item?.id) continue;
@@ -41,11 +45,17 @@ async function flushOfflineTransactionQueue(): Promise<number> {
       delete cleanItem.id;
       delete cleanItem.hasPendingWrites;
       batch.set(doc(db, 'transactions', String(item.id)), JSON.parse(JSON.stringify(cleanItem)), { merge: true });
+      syncedIds.add(String(item.id));
       count++;
     }
+    if (count === 0) return 0;
     await batch.commit();
-    localStorage.setItem('offline_transactions_queue', '[]');
-    window.dispatchEvent(new Event('solar_offline_queue_changed'));
+
+    // Re-read storage after commit. Only remove IDs that were in this exact flush;
+    // anything appended/replaced after the snapshot remains queued for the next pass.
+    const latestQueue = parseQueue();
+    const remaining = latestQueue.filter(item => !syncedIds.has(String(item?.id)));
+    persistQueue(remaining);
     return count;
   })().finally(() => { queueFlushPromise = null; });
   return queueFlushPromise;

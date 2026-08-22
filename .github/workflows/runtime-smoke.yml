@@ -28,6 +28,8 @@ jobs:
         run: npm run test:document-numbering
       - name: Brand/product workflow checks
         run: npm run test:brand-workflow
+      - name: Cloud sync E2E queue checks
+        run: npm run test:cloud-sync
       - name: Production build
         run: npm run build
       - name: Start production server on configured port

@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit --project tsconfig.release.json",
     "test:workflow": "tsx scripts/business-workflow-check.ts",
     "test:document-numbering": "tsx scripts/document-numbering-check.ts",
-    "test:brand-workflow": "tsx scripts/brand-product-workflow-check.ts"
+    "test:brand-workflow": "tsx scripts/brand-product-workflow-check.ts",
+    "test:cloud-sync": "tsx scripts/cloud-sync-e2e-check.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

@@ -13,10 +13,8 @@ function removeUndefinedFields<T>(obj: T): T {
   if (typeof obj !== 'object') return obj;
   if (Array.isArray(obj)) return obj.map(item => removeUndefinedFields(item)) as unknown as T;
   const cleaned: Record<string, any> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    if (value !== undefined) cleaned[key] = typeof value === 'object' && value !== null ? removeUndefinedFields(value) : value;
-  }
-  return cleaned as T;
+  for (const [key, value] of Object.entries(obj)) cleaned[key] = value === undefined ? undefined : (typeof value === 'object' && value !== null ? removeUndefinedFields(value) : value);
+  return Object.fromEntries(Object.entries(cleaned).filter(([, value]) => value !== undefined)) as T;
 }
 
 function prepareUpdateData(updates: Record<string, any>): Record<string, any> {
@@ -71,38 +69,26 @@ export function useTransactions() {
     const cooldownUntil = Math.max(lastQuotaExhaustedRef.current, offlineSyncCooldownUntil);
     if (Date.now() <= cooldownUntil) return;
     offlineSyncPromise = (async () => {
-      let currentQueue: Transaction[] = [];
-      try { const saved = localStorage.getItem('offline_transactions_queue'); currentQueue = saved ? JSON.parse(saved) : []; }
-      catch (e) { console.error('Error reading offline queue for sync:', e); return; }
-      if (currentQueue.length === 0) return;
-      isSyncingRef.current = true;
-      const remaining: Transaction[] = [];
       try {
-        for (let i = 0; i < currentQueue.length; i++) {
-          const tx = currentQueue[i];
-          try {
-            const { id, hasPendingWrites, ...cleanTx } = tx;
-            const cleanedData = removeUndefinedFields({ ...cleanTx, createdAt: cleanTx.createdAt || new Date().toISOString(), createdBy: cleanTx.createdBy || user.uid });
-            // Preserve the queue ID. dbManager and this hook may both retry after reconnect;
-            // deterministic IDs make repeated writes idempotent instead of creating duplicates.
-            await setDoc(doc(db, 'transactions', String(id)), cleanedData, { merge: true });
-            try {
-              await logAuditEvent({ action: 'TRANSACTION_CREATE', category: 'transaction', targetId: String(id), targetName: `${cleanTx.detail || cleanTx.category} (฿${cleanTx.amount?.toLocaleString()})`, details: `[ออฟไลน์ซิงก์สำเร็จ] กู้คืนและบันทึกรายการ ${cleanTx.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${cleanTx.category}]`, newData: cleanedData });
-            } catch (auditError) { console.error('Offline transaction synced but audit log failed:', auditError); }
-          } catch (error: any) {
-            console.warn('Error syncing offline transaction to Firebase:', error);
-            remaining.push(tx, ...currentQueue.slice(i + 1));
-            if (isRetryableFirestoreError(error)) {
-              const retryDelay = error?.code === 'resource-exhausted' ? 5 * 60 * 1000 : 30 * 1000;
-              lastQuotaExhaustedRef.current = Date.now() + retryDelay; offlineSyncCooldownUntil = Date.now() + retryDelay;
-            } else toast.error('ไม่สามารถซิงค์ออเดอร์ออฟไลน์ได้ เนื่องจากสิทธิ์หรือข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่', { id: 'offline-queue-sync-error' });
-            break;
-          }
+        isSyncingRef.current = true;
+        // dbManager is the sole queue flusher. This prevents the hook and reconnect
+        // handler from taking independent snapshots and overwriting each other.
+        await dbManager.flushOfflineQueue();
+        const saved = localStorage.getItem('offline_transactions_queue');
+        const remaining = saved ? JSON.parse(saved) : [];
+        setOfflineQueue(Array.isArray(remaining) ? remaining : []);
+      } catch (error: any) {
+        console.warn('Error syncing offline transaction queue:', error);
+        if (isRetryableFirestoreError(error)) {
+          const retryDelay = error?.code === 'resource-exhausted' ? 5 * 60 * 1000 : 30 * 1000;
+          lastQuotaExhaustedRef.current = Date.now() + retryDelay;
+          offlineSyncCooldownUntil = Date.now() + retryDelay;
+        } else {
+          toast.error('ไม่สามารถซิงค์ออเดอร์ออฟไลน์ได้ เนื่องจากสิทธิ์หรือข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่', { id: 'offline-queue-sync-error' });
         }
-        localStorage.setItem('offline_transactions_queue', JSON.stringify(remaining));
-        setOfflineQueue(remaining); window.dispatchEvent(new Event('solar_offline_queue_changed'));
-      } catch (error) { console.error('Offline queue persistence failed:', error); }
-      finally { isSyncingRef.current = false; }
+      } finally {
+        isSyncingRef.current = false;
+      }
     })().finally(() => { offlineSyncPromise = null; });
     return offlineSyncPromise;
   };
@@ -114,9 +100,13 @@ export function useTransactions() {
     const tempId = `offline_queued_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const cleanedData = removeUndefinedFields({ ...transaction, createdAt: new Date().toISOString(), createdBy: user.uid });
     const queueOffline = () => {
-      const offlineTx: Transaction = { id: tempId, ...cleanedData, hasPendingWrites: true }; const updatedQueue = [...offlineQueue, offlineTx]; setOfflineQueue(updatedQueue);
+      const offlineTx: Transaction = { id: tempId, ...cleanedData, hasPendingWrites: true };
+      const updatedQueue = [...offlineQueue, offlineTx];
+      setOfflineQueue(updatedQueue);
       try { localStorage.setItem('offline_transactions_queue', JSON.stringify(updatedQueue)); } catch (e) { console.error('Failed to write transaction queue to localStorage:', e); }
-      window.dispatchEvent(new Event('solar_offline_queue_changed')); toast.success('💾 จัดเก็บออฟไลน์เรียบร้อย! รายการจะซิงค์ขึ้นระบบคลาวด์อัตโนมัติเมื่ออินเทอร์เน็ตพร้อมใช้งาน', { id: 'offline-queued-success', icon: '📡', duration: 5000 }); return tempId;
+      window.dispatchEvent(new Event('solar_offline_queue_changed'));
+      toast.success('💾 จัดเก็บออฟไลน์เรียบร้อย! รายการจะซิงค์ขึ้นระบบคลาวด์อัตโนมัติเมื่ออินเทอร์เน็ตพร้อมใช้งาน', { id: 'offline-queued-success', icon: '📡', duration: 5000 });
+      return tempId;
     };
     if (!isOnline || dbManager.getActualProvider() === 'local') return queueOffline();
     try {
