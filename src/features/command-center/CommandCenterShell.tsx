@@ -5,6 +5,7 @@ import { getUserPermissions } from '../../utils/permissions';
 import { COMMAND_DOMAINS } from './domains';
 import { COMMAND_REGISTRY, type CommandDefinition } from './registry';
 import { canAccessCommand } from './permissions';
+import { CommandCenterOverview } from './CommandCenterOverview';
 
 interface CommandCenterShellProps {
   children: ReactNode;
@@ -29,6 +30,7 @@ export function CommandCenterShell({ children, onSelectCommand, additionalComman
   const visibleDomains = COMMAND_DOMAINS.map(domain => ({ ...domain, commands: visible.filter(command => command.domain === domain.id) })).filter(domain => domain.commands.length);
 
   return <div className="max-w-[1600px] mx-auto space-y-5 pb-12">
+    <CommandCenterOverview user={appUser} commands={available} onSelectCommand={onSelectCommand}/>
     <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-7">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div><div className="inline-flex items-center gap-2 rounded-full bg-brand-soft px-3 py-1 text-[10px] font-black text-brand"><Settings2 size={13}/> COMMAND CENTER 2.0</div><h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">ศูนย์ควบคุมเดียวสำหรับทุกระบบ</h1><p className="mt-1 max-w-3xl text-xs font-medium leading-5 text-slate-500">ค้นหา เข้าถึง และจัดการ workspace จาก registry และ permission policy ชุดเดียว</p></div>
