@@ -6,13 +6,21 @@ import { COMMAND_DOMAINS } from './domains';
 import { COMMAND_REGISTRY, type CommandDefinition } from './registry';
 import { canAccessCommand } from './permissions';
 
-interface CommandCenterShellProps { children: ReactNode; onSelectCommand?: (command: CommandDefinition) => void; }
+interface CommandCenterShellProps {
+  children: ReactNode;
+  onSelectCommand?: (command: CommandDefinition) => void;
+  additionalCommands?: CommandDefinition[];
+}
 
-export function CommandCenterShell({ children, onSelectCommand }: CommandCenterShellProps) {
+export function CommandCenterShell({ children, onSelectCommand, additionalCommands = [] }: CommandCenterShellProps) {
   const { appUser } = useAuth();
   const permissions = getUserPermissions(appUser);
   const [query, setQuery] = useState('');
-  const available = useMemo(() => COMMAND_REGISTRY.filter(command => canAccessCommand(appUser, permissions, command.permission)), [appUser, permissions]);
+  const available = useMemo(() => {
+    const registry = [...COMMAND_REGISTRY, ...additionalCommands];
+    const unique = new Map(registry.map(command => [command.id, command]));
+    return [...unique.values()].filter(command => canAccessCommand(appUser, permissions, command.permission));
+  }, [additionalCommands, appUser, permissions]);
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return available;
