@@ -45,6 +45,7 @@ service cloud.firestore {
     match /login_settings/{documentId} { allow read: if signedIn(); allow create, update: if permission('canManageSecurity') && validLoginPolicy(); allow delete: if permission('canManageSecurity'); }
     match /settings/{documentId} { allow read: if signedIn(); allow create, update, delete: if permission('canManageSettings'); }
     match /app_config/{documentId} { allow read: if signedIn(); allow create, update, delete: if permission('canManageSettings'); }
+    match /config/{documentId} { allow read, create, update, delete: if permission('canManageSettings'); }
     match /__healthcheck/{documentId} { allow read: if signedIn(); allow write: if permission('canManageDatabase'); }
     match /audit_logs/{documentId} {
       allow read: if permission('canViewAuditLogs');
