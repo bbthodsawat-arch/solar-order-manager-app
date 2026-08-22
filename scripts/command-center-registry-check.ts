@@ -15,6 +15,11 @@ assert.equal(existsSync('src/pages/SettingsWorkspace.tsx'), false, 'superseded l
 
 const staff: AppUser = { uid:'staff', email:null, displayName:'Staff', photoURL:null, role:'staff', status:'active', createdAt:'' };
 const admin: AppUser = { ...staff, uid:'admin', role:'admin' };
-assert.equal(COMMAND_REGISTRY.some(command => command.id === 'system.maintenance' && canAccessCommand(staff, getUserPermissions(staff), command.permission)), false, 'staff must not see factory reset');
-assert.equal(COMMAND_REGISTRY.some(command => command.id === 'system.maintenance' && canAccessCommand(admin, getUserPermissions(admin), command.permission)), true, 'admin should access factory reset policy');
+const staffPermissions = getUserPermissions(staff);
+const adminPermissions = getUserPermissions(admin);
+for (const id of ['business.profile', 'business.brand', 'business.documents', 'system.maintenance']) {
+  const command = COMMAND_REGISTRY.find(item => item.id === id)!;
+  assert.equal(canAccessCommand(staff, staffPermissions, command.permission), false, `staff must not access ${id}`);
+  assert.equal(canAccessCommand(admin, adminPermissions, command.permission), true, `admin should access ${id}`);
+}
 console.log(`Command Center registry and permission checks passed (${COMMAND_REGISTRY.length} commands)`);
