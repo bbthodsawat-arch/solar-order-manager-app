@@ -35,6 +35,7 @@ assert.match(resetService, /BATCH_LIMIT = 450/, 'factory reset must stay below F
 assert.match(resetService, /assertFactoryResetAuthorized/, 'destructive reset service must authorize at execution time');
 assert.match(resetService, /permissions\.canManageDatabase !== true/, 'reset service must enforce database permission');
 assert.match(resetService, /permissions\.canManageSettings !== true/, 'reset service must enforce settings permission');
+assert.doesNotMatch(resetService, /OWNER_EMAIL|b\.b\.thodsawat@gmail\.com/, 'factory reset service must not contain an email-based authorization bypass');
 assert.match(resetService, /terminate\(db\)/, 'factory reset must terminate Firestore before clearing persistent cache');
 assert.match(resetService, /clearIndexedDbPersistence\(db\)/, 'factory reset must clear persistent Firestore cache before reload');
 assert.match(resetService, /resetAppConfigToFactoryDefaults/, 'factory reset must persist a known default configuration');
@@ -45,6 +46,7 @@ assert.doesNotMatch(resetComponent, /user\?\.email\?\.toLowerCase\(\) === 'b\.b\
 assert.match(resetComponent, /await assertFactoryResetAuthorized\(\)/, 'UI must revalidate authorization immediately before destructive work');
 assert.match(resetComponent, /factory_reset_started/, 'factory reset must create an audit trail');
 assert.match(resetComponent, /factory_reset_failed/, 'failed factory reset must be auditable');
+assert.match(resetComponent, /catch \(auditError\)/, 'audit failure must never mask the original factory reset failure');
 assert.match(resetComponent, /ไม่สมบูรณ์/, 'factory reset must never show false success after a failure');
 
 console.log('Cloud sync and factory reset integrity checks passed');
