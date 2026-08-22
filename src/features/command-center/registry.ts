@@ -14,7 +14,9 @@ export interface CommandDefinition {
 }
 
 export const COMMAND_REGISTRY: CommandDefinition[] = [
-  { id:'business.profile', domain:'business', title:'ข้อมูลธุรกิจและเอกสาร', description:'ข้อมูลกิจการ เอกสาร เลขที่ และแบรนด์', keywords:['business','company','document','brand','เอกสาร','บริษัท','แบรนด์'], permission:'canManageSettings', legacySection:'business', quickAction:true },
+  { id:'business.profile', domain:'business', title:'ข้อมูลธุรกิจ', description:'ข้อมูลกิจการ ที่อยู่ และค่าพื้นฐานของธุรกิจ', keywords:['business','company','profile','บริษัท','ธุรกิจ'], permission:'canManageSettings', legacySection:'business', quickAction:true },
+  { id:'business.brand', domain:'business', title:'แบรนด์และการชำระเงิน', description:'โลโก้ บัญชีรับเงิน ลายเซ็น และข้อมูลแบรนด์', keywords:['brand','branding','payment','bank','logo','ชำระเงิน','แบรนด์'], permission:'canManageSettings', legacySection:'branding', quickAction:true },
+  { id:'business.documents', domain:'business', title:'Document Center', description:'Template, เลขที่เอกสาร Workflow และคลังเอกสาร', keywords:['document','template','numbering','workflow','archive','เอกสาร','เลขที่เอกสาร'], permission:'canManageSettings', legacySection:'documents', quickAction:true },
   { id:'business.configuration', domain:'business', title:'หมวดหมู่ การชำระเงิน และแท็ก', description:'ค่ามาตรฐานสำหรับรายรับ รายจ่าย และการชำระเงิน', keywords:['payment','category','tag','ชำระเงิน','หมวดหมู่'], permission:'canManageSettings', legacySection:'configuration' },
   { id:'catalog.products', domain:'catalog', title:'ชุดสินค้าและราคา', description:'ชุดมาตรฐาน ราคา และสินค้า', keywords:['product','catalog','price','สินค้า','ราคา'], permission:'canManageInventory', legacySection:'catalog', quickAction:true },
   { id:'catalog.inventory', domain:'catalog', title:'สินค้าและสต็อก', description:'สินค้า คลัง และจำนวนคงเหลือ', keywords:['inventory','stock','สต็อก','คลัง'], permission:'canManageInventory', legacySection:'inventory' },
