@@ -26,6 +26,8 @@ jobs:
         run: npm run test:workflow
       - name: Document numbering regression checks
         run: npm run test:document-numbering
+      - name: Brand/product workflow checks
+        run: npm run test:brand-workflow
       - name: Production build
         run: npm run build
       - name: Start production server on configured port
