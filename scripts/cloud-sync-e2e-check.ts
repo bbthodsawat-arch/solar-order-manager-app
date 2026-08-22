@@ -32,10 +32,17 @@ assert.match(customersHook, /start \+= 450/, 'customer factory reset deletion mu
 assert.match(customersHook, /Customer reset verification failed/, 'customer deletion must verify no documents remain');
 assert.match(resetService, /FACTORY_RESET_COLLECTIONS/, 'factory reset must use an explicit business-data scope');
 assert.match(resetService, /BATCH_LIMIT = 450/, 'factory reset must stay below Firestore batch limits');
+assert.match(resetService, /assertFactoryResetAuthorized/, 'destructive reset service must authorize at execution time');
+assert.match(resetService, /permissions\.canManageDatabase !== true/, 'reset service must enforce database permission');
+assert.match(resetService, /permissions\.canManageSettings !== true/, 'reset service must enforce settings permission');
+assert.match(resetService, /terminate\(db\)/, 'factory reset must terminate Firestore before clearing persistent cache');
+assert.match(resetService, /clearIndexedDbPersistence\(db\)/, 'factory reset must clear persistent Firestore cache before reload');
 assert.match(resetService, /resetAppConfigToFactoryDefaults/, 'factory reset must persist a known default configuration');
 assert.match(resetService, /Factory reset verification failed/, 'factory reset must verify destructive operations');
 assert.match(resetComponent, /isAdminOrOwner/, 'factory reset UI must be admin/owner only');
 assert.match(resetComponent, /permissions\.canManageDatabase/, 'factory reset UI must require database permission');
+assert.doesNotMatch(resetComponent, /user\?\.email\?\.toLowerCase\(\) === 'b\.b\.thodsawat@gmail\.com'/, 'factory reset UI must not use an email-only authorization bypass');
+assert.match(resetComponent, /await assertFactoryResetAuthorized\(\)/, 'UI must revalidate authorization immediately before destructive work');
 assert.match(resetComponent, /factory_reset_started/, 'factory reset must create an audit trail');
 assert.match(resetComponent, /factory_reset_failed/, 'failed factory reset must be auditable');
 assert.match(resetComponent, /ไม่สมบูรณ์/, 'factory reset must never show false success after a failure');
