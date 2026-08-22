@@ -18,10 +18,17 @@ interface Props {
   onNavigateToUsers?: () => void;
   onNavigateToAudit?: () => void;
   onLockApp?: () => void;
+  activeCommand?: BusinessMigrationCommand;
+  onActiveCommandChange?: (command: BusinessMigrationCommand) => void;
 }
 
-export function BusinessMigrationWorkspace(props: Props) {
-  const [active, setActive] = useState<BusinessMigrationCommand>('business.brand');
+export function BusinessMigrationWorkspace({ activeCommand, onActiveCommandChange, ...props }: Props) {
+  const [internalActive, setInternalActive] = useState<BusinessMigrationCommand>('business.brand');
+  const active = activeCommand ?? internalActive;
+  const setActive = (command: BusinessMigrationCommand) => {
+    setInternalActive(command);
+    onActiveCommandChange?.(command);
+  };
   const command = BUSINESS_MIGRATION_COMMANDS.find(item => item.id === active);
 
   return (
