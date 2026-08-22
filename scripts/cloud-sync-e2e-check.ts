@@ -7,9 +7,13 @@ const latest = [{ id: 'offline_1', amount: 99 }, initial[1], { id: 'offline_3', 
 const remaining = latest.filter(item => snapshotById.get(item.id) !== JSON.stringify(item));
 assert.deepEqual(remaining, [{ id: 'offline_1', amount: 99 }, { id: 'offline_3', amount: 30 }], 'edits and appended entries must survive an in-flight flush');
 
+const firebase = readFileSync('src/lib/firebase.ts', 'utf8');
 const dbManager = readFileSync('src/lib/dbManager.ts', 'utf8');
 const transactionsHook = readFileSync('src/hooks/useTransactions.ts', 'utf8');
 const cloudStatusHook = readFileSync('src/hooks/useCloudSyncStatus.ts', 'utf8');
+assert.match(firebase, /persistentLocalCache\(/, 'Firestore must use a persistent local cache for reload-safe offline sync');
+assert.match(firebase, /persistentSingleTabManager\(/, 'persistent cache must define a tab manager');
+assert.match(firebase, /function createFirestore\(/, 'Firestore initialization must safely handle existing app instances');
 assert.match(dbManager, /function mutateQueue\(/, 'all queue mutations must use a latest-state coordinator');
 assert.match(dbManager, /snapshotById/, 'flush reconciliation must compare exact committed snapshots');
 assert.match(dbManager, /start \+= 450/, 'large queues must be committed in batches below Firestore limits');
