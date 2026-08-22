@@ -24,13 +24,21 @@ function persistQueue(items: any[]) { localStorage.setItem('offline_transactions
 function snapshotItem(item: any) { return JSON.stringify(item); }
 function cleanTransaction(item: any) { const cleanItem = { ...item }; delete cleanItem.id; delete cleanItem.hasPendingWrites; return JSON.parse(JSON.stringify(cleanItem)); }
 function mutateQueue(mutator: (items: any[]) => any[]) { const next = mutator(parseQueue()); persistQueue(next); return next; }
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(`${label} ใช้เวลานานเกิน ${Math.round(timeoutMs / 1000)} วินาที — ข้อมูลยังอยู่ในคิวและจะลองใหม่อัตโนมัติ`)), timeoutMs);
+    promise.then(value => { window.clearTimeout(timer); resolve(value); }, error => { window.clearTimeout(timer); reject(error); });
+  });
+}
 
 async function waitForAuthReady(timeoutMs = 5000): Promise<boolean> {
   if (auth.currentUser) return true;
   if (!authReadyPromise) {
     authReadyPromise = new Promise<boolean>((resolve) => {
-      const timeout = window.setTimeout(() => { unsubscribe(); resolve(Boolean(auth.currentUser)); }, timeoutMs);
-      const unsubscribe = onAuthStateChanged(auth, (user) => { window.clearTimeout(timeout); unsubscribe(); resolve(Boolean(user)); });
+      let unsubscribe: (() => void) | undefined;
+      const finish = (value: boolean) => { if (unsubscribe) unsubscribe(); resolve(value); };
+      const timeout = window.setTimeout(() => finish(Boolean(auth.currentUser)), timeoutMs);
+      unsubscribe = onAuthStateChanged(auth, (user) => { window.clearTimeout(timeout); finish(Boolean(user)); });
     }).finally(() => { authReadyPromise = null; });
   }
   return authReadyPromise;
@@ -44,10 +52,11 @@ async function flushOfflineTransactionQueue(): Promise<number> {
     const snapshotById = new Map(localQueue.map(item => [String(item.id), snapshotItem(item)]));
     let count = 0;
     for (let start = 0; start < localQueue.length; start += 450) {
+      const chunk = localQueue.slice(start, start + 450);
       const batch = writeBatch(db);
-      for (const item of localQueue.slice(start, start + 450)) batch.set(doc(db, 'transactions', String(item.id)), cleanTransaction(item), { merge: true });
-      await batch.commit();
-      count += Math.min(450, localQueue.length - start);
+      for (const item of chunk) batch.set(doc(db, 'transactions', String(item.id)), cleanTransaction(item), { merge: true });
+      await withTimeout(batch.commit(), 15000, `การซิงค์ Firestore ชุดที่ ${Math.floor(start / 450) + 1}`);
+      count += chunk.length;
     }
     const latestQueue = parseQueue();
     const remaining = latestQueue.filter(item => snapshotById.get(String(item?.id)) !== snapshotItem(item));
@@ -76,35 +85,33 @@ export const dbManager = {
     const latencyMs = Date.now() - started;
     if (!signedIn) {
       healthStatus.firebase = { status: 'error', latencyMs, message: 'ยังไม่มี Firebase user session — กรุณาเข้าสู่ระบบก่อนซิงค์' };
-      actualProvider = 'local';
-      this.addErrorLog('firebase', 'Authentication Required', healthStatus.firebase.message, false);
-      notifySubscribers();
-      return healthStatus;
+      actualProvider = 'local'; this.addErrorLog('firebase', 'Authentication Required', healthStatus.firebase.message, false); notifySubscribers(); return healthStatus;
     }
-    healthStatus.firebase = { status: 'healthy', latencyMs, message: 'Firebase session พร้อมซิงค์ข้อมูล' };
-    actualProvider = 'firebase';
-    notifySubscribers();
-    return healthStatus;
+    healthStatus.firebase = { status: 'healthy', latencyMs, message: 'Firebase session พร้อมซิงค์ข้อมูล' }; actualProvider = 'firebase'; notifySubscribers(); return healthStatus;
   },
   async flushOfflineQueue(): Promise<number> {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return 0;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) throw new Error('อุปกรณ์ออฟไลน์: รอการเชื่อมต่ออินเทอร์เน็ตก่อนซิงค์');
     const signedIn = await waitForAuthReady();
     if (!signedIn) throw new Error('Firebase Authentication ยังไม่พร้อมใช้งาน');
-    // Do not use a separate Firestore read as a health gate: the real operation below is the authoritative write check.
     const count = await flushOfflineTransactionQueue();
     healthStatus.firebase = { status: 'healthy', latencyMs: healthStatus.firebase.latencyMs, message: count > 0 ? `ซิงค์สำเร็จ ${count} รายการ` : 'ไม่มีรายการค้างสำหรับซิงค์' };
     actualProvider = 'firebase';
-    if (count > 0) { localStorage.setItem('solar_last_sync_success_local', new Date().toISOString()); localStorage.setItem('solar_last_sync_success_firebase', new Date().toISOString()); }
-    notifySubscribers();
-    return count;
+    if (count > 0) { const now = new Date().toISOString(); localStorage.setItem('solar_last_sync_success_local', now); localStorage.setItem('solar_last_sync_success_firebase', now); }
+    notifySubscribers(); return count;
   },
   async syncDatabases(): Promise<{ success: boolean; stats: SyncStats }> {
-    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     const stats: SyncStats = { transactions: 0, customers: 0, appointments: 0, warranties: 0, quickNotes: 0 };
-    if (!isOnline) throw new Error('อุปกรณ์ออฟไลน์: รอการเชื่อมต่ออินเทอร์เน็ตก่อนซิงค์');
     const toastId = toast.loading('กำลังซิงค์ข้อมูลกับ Firebase Firestore...');
-    try { stats.transactions = await this.flushOfflineQueue(); await this.runDiagnostics(); toast.success('☁️ ซิงค์กับ Firebase Firestore สำเร็จ', { id: toastId }); return { success: true, stats }; }
-    catch (error: any) { const message = error?.message || 'ระบบขัดข้อง'; this.addErrorLog('firebase', 'Sync Error', message, false); healthStatus.firebase = { status: 'error', latencyMs: healthStatus.firebase.latencyMs, message }; actualProvider = 'local'; notifySubscribers(); toast.error(`การซิงค์ Firebase ล้มเหลว: ${message}`, { id: toastId }); return { success: false, stats }; }
+    try {
+      stats.transactions = await this.flushOfflineQueue();
+      toast.success(stats.transactions > 0 ? `☁️ ซิงค์สำเร็จ ${stats.transactions} รายการ` : '☁️ ไม่มีรายการค้างสำหรับซิงค์', { id: toastId });
+      return { success: true, stats };
+    } catch (error: any) {
+      const message = error?.message || 'ระบบขัดข้อง';
+      this.addErrorLog('firebase', 'Sync Error', message, false);
+      healthStatus.firebase = { status: 'error', latencyMs: healthStatus.firebase.latencyMs, message }; actualProvider = 'local'; notifySubscribers();
+      toast.error(`การซิงค์ Firebase ล้มเหลว: ${message}`, { id: toastId }); return { success: false, stats };
+    }
   },
   getErrorLogs(): DbSyncError[] { try { return JSON.parse(localStorage.getItem('solar_db_sync_errors') || '[]'); } catch { return []; } },
   clearErrorLogs() { localStorage.setItem('solar_db_sync_errors', '[]'); notifySubscribers(); },
@@ -112,9 +119,7 @@ export const dbManager = {
 };
 
 if (typeof window !== 'undefined') {
-  onAuthStateChanged(auth, (user) => {
-    if (user && navigator.onLine) void dbManager.flushOfflineQueue().catch(error => dbManager.addErrorLog('firebase', 'Automatic Queue Flush Failed', error instanceof Error ? error.message : String(error), false));
-  });
+  onAuthStateChanged(auth, (user) => { if (user && navigator.onLine) void dbManager.flushOfflineQueue().catch(error => dbManager.addErrorLog('firebase', 'Automatic Queue Flush Failed', error instanceof Error ? error.message : String(error), false)); });
   window.addEventListener('online', () => { void dbManager.flushOfflineQueue().catch(error => dbManager.addErrorLog('network', 'Automatic Queue Flush Failed', error instanceof Error ? error.message : String(error), false)); });
   window.addEventListener('offline', () => { void dbManager.runDiagnostics(); });
   setTimeout(() => { void dbManager.flushOfflineQueue().catch(() => undefined); }, 1000);
