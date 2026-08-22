@@ -20,7 +20,7 @@ const session = storage();
 const { connectAuthEmulator, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } = await import('firebase/auth');
 const { connectFirestoreEmulator, collection, doc, getDoc, getDocs, setDoc } = await import('firebase/firestore');
 const { auth, db, firebaseApp } = await import('../src/lib/firebase.ts');
-const { FACTORY_RESET_COLLECTIONS, resetBusinessData, resetAppConfigToFactoryDefaults, deleteLegacyConfigDocument } = await import('../src/lib/systemResetService.ts');
+const { FACTORY_RESET_COLLECTIONS, resetBusinessData, resetAppConfigToFactoryDefaults, deleteLegacyConfigDocument, clearLocalApplicationState } = await import('../src/lib/systemResetService.ts');
 
 connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
 connectFirestoreEmulator(db, '127.0.0.1', 8080);
@@ -35,7 +35,6 @@ async function signIn(email: string, password: string) {
 }
 
 async function seedBusinessData() {
-  const seedCounts: Record<string, number> = {};
   for (const name of FACTORY_RESET_COLLECTIONS) {
     const count = name === 'customers' ? 451 : 2;
     for (let i = 0; i < count; i += 1) {
@@ -45,11 +44,9 @@ async function seedBusinessData() {
         index: i,
       });
     }
-    seedCounts[name] = count;
   }
   await setDoc(doc(db, 'app_config', 'app'), { config: { testMarker: 'FACTORY_RESET_EMULATOR_TEST' }, updated_by: auth.currentUser!.uid });
   await setDoc(doc(db, 'config', 'app'), { testMarker: 'FACTORY_RESET_EMULATOR_TEST' });
-  return seedCounts;
 }
 
 async function assertBusinessDataExists() {
@@ -74,13 +71,8 @@ await createUserWithEmailAndPassword(auth, ownerEmail, ownerPassword).catch((err
 await signIn(ownerEmail, ownerPassword);
 const owner = auth.currentUser!;
 await setDoc(doc(db, 'users', owner.uid), {
-  uid: owner.uid,
-  email: ownerEmail,
-  username: 'factory-reset-test-owner',
-  displayName: 'Factory Reset Test Owner',
-  role: 'owner',
-  status: 'active',
-  permissions: { canManageDatabase: true, canManageSettings: true },
+  uid: owner.uid, email: ownerEmail, username: 'factory-reset-test-owner', displayName: 'Factory Reset Test Owner',
+  role: 'owner', status: 'active', permissions: { canManageDatabase: true, canManageSettings: true },
 });
 
 await createUserWithEmailAndPassword(auth, staffEmail, staffPassword).catch((error: any) => {
@@ -90,13 +82,8 @@ await signOut(auth);
 await signIn(staffEmail, staffPassword);
 const staff = auth.currentUser!;
 await setDoc(doc(db, 'users', staff.uid), {
-  uid: staff.uid,
-  email: staffEmail,
-  username: 'factory-reset-test-staff',
-  displayName: 'Factory Reset Test Staff',
-  role: 'staff',
-  status: 'active',
-  permissions: { canManageDatabase: false, canManageSettings: false },
+  uid: staff.uid, email: staffEmail, username: 'factory-reset-test-staff', displayName: 'Factory Reset Test Staff',
+  role: 'staff', status: 'active', permissions: { canManageDatabase: false, canManageSettings: false },
 });
 
 await signOut(auth);
@@ -104,11 +91,13 @@ await signIn(ownerEmail, ownerPassword);
 await seedBusinessData();
 await assertBusinessDataExists();
 
+// Negative authorization path: staff must not be able to start destructive work.
 await signOut(auth);
 await signIn(staffEmail, staffPassword);
 await assert.rejects(() => resetBusinessData(), /requires an active Admin\/Owner/);
 assert.ok((await getDoc(doc(db, 'customers', 'factory-reset-test-customers-0'))).exists(), 'unauthorized reset must not delete business data');
 
+// Positive destructive path against an isolated emulator-only dataset.
 await signOut(auth);
 await signIn(ownerEmail, ownerPassword);
 const counts = await resetBusinessData();
@@ -122,14 +111,17 @@ assert.ok(config.exists(), 'factory defaults must persist after reset');
 assert.notEqual(config.data()?.config?.testMarker, 'FACTORY_RESET_EMULATOR_TEST', 'factory config must replace test config');
 assert.equal((await getDoc(doc(db, 'config', 'app'))).exists(), false, 'legacy config must be deleted');
 
+// Browser-state cleanup path: verify local/session storage is cleared as part of reset.
+local.setItem('factory-reset-test', 'must-clear');
+session.setItem('factory-reset-test', 'must-clear');
+await clearLocalApplicationState();
+assert.equal(local.getItem('factory-reset-test'), null, 'localStorage must be cleared');
+assert.equal(session.getItem('factory-reset-test'), null, 'sessionStorage must be cleared');
+
 console.log(JSON.stringify({
-  status: 'passed',
-  authorization: 'passed',
-  unauthorizedDataPreserved: true,
-  collectionsCleared: FACTORY_RESET_COLLECTIONS,
-  batchBoundary: '451 customers cleared across multiple batches',
-  appConfigReset: true,
-  legacyConfigRemoved: true,
+  status: 'passed', authorization: 'passed', unauthorizedDataPreserved: true,
+  collectionsCleared: FACTORY_RESET_COLLECTIONS, batchBoundary: '451 customers cleared across multiple batches',
+  appConfigReset: true, legacyConfigRemoved: true, browserStateCleared: true,
   emulatorProject: (firebaseApp.options as any).projectId,
 }, null, 2));
 
