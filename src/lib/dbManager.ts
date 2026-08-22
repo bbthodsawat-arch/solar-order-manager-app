@@ -1,6 +1,6 @@
 import { doc, writeBatch } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { db, auth } from './firebase';
+import { db, auth, ensureFirebaseUserProfile } from './firebase';
 import { toast } from 'react-hot-toast';
 
 export type DbProvider = 'local' | 'firebase';
@@ -24,29 +24,34 @@ function persistQueue(items: any[]) { localStorage.setItem('offline_transactions
 function snapshotItem(item: any) { return JSON.stringify(item); }
 function cleanTransaction(item: any) { const cleanItem = { ...item }; delete cleanItem.id; delete cleanItem.hasPendingWrites; return JSON.parse(JSON.stringify(cleanItem)); }
 function mutateQueue(mutator: (items: any[]) => any[]) { const next = mutator(parseQueue()); persistQueue(next); return next; }
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = window.setTimeout(() => reject(new Error(`${label} ใช้เวลานานเกิน ${Math.round(timeoutMs / 1000)} วินาที — ข้อมูลยังอยู่ในคิวและจะลองใหม่อัตโนมัติ`)), timeoutMs);
-    promise.then(value => { window.clearTimeout(timer); resolve(value); }, error => { window.clearTimeout(timer); reject(error); });
-  });
-}
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> { return new Promise<T>((resolve, reject) => { const timer = window.setTimeout(() => reject(new Error(`${label} ใช้เวลานานเกิน ${Math.round(timeoutMs / 1000)} วินาที — ข้อมูลยังอยู่ในคิวและจะลองใหม่อัตโนมัติ`)), timeoutMs); promise.then(v => { window.clearTimeout(timer); resolve(v); }, e => { window.clearTimeout(timer); reject(e); }); }); }
 
 async function waitForAuthReady(timeoutMs = 5000): Promise<boolean> {
   if (auth.currentUser) return true;
-  if (!authReadyPromise) {
-    authReadyPromise = new Promise<boolean>((resolve) => {
-      let unsubscribe: (() => void) | undefined;
-      const finish = (value: boolean) => { if (unsubscribe) unsubscribe(); resolve(value); };
-      const timeout = window.setTimeout(() => finish(Boolean(auth.currentUser)), timeoutMs);
-      unsubscribe = onAuthStateChanged(auth, (user) => { window.clearTimeout(timeout); finish(Boolean(user)); });
-    }).finally(() => { authReadyPromise = null; });
-  }
+  if (!authReadyPromise) authReadyPromise = new Promise<boolean>((resolve) => {
+    let unsubscribe: (() => void) | undefined;
+    const finish = (value: boolean) => { if (unsubscribe) unsubscribe(); resolve(value); };
+    const timeout = window.setTimeout(() => finish(Boolean(auth.currentUser)), timeoutMs);
+    unsubscribe = onAuthStateChanged(auth, user => { window.clearTimeout(timeout); finish(Boolean(user)); });
+  }).finally(() => { authReadyPromise = null; });
   return authReadyPromise;
+}
+
+/** Auth alone is not enough: Firestore rules derive transaction permissions from users/{uid}.
+ * Always provision/read that profile synchronously before any write or auto-flush. */
+async function waitForFirestoreWriteAccess(): Promise<void> {
+  const signedIn = await waitForAuthReady();
+  const user = auth.currentUser;
+  if (!signedIn || !user) throw new Error('Firebase Authentication ยังไม่พร้อมใช้งาน');
+  await ensureFirebaseUserProfile(user);
 }
 
 async function flushOfflineTransactionQueue(): Promise<number> {
   if (queueFlushPromise) return queueFlushPromise;
   queueFlushPromise = (async () => {
+    // The provisioning await is inside the shared coordinator so manual sync,
+    // reconnect and startup sync all obey the same permission-ready barrier.
+    await waitForFirestoreWriteAccess();
     const localQueue = parseQueue().filter(item => item?.id);
     if (!localQueue.length) return 0;
     const snapshotById = new Map(localQueue.map(item => [String(item.id), snapshotItem(item)]));
@@ -59,8 +64,7 @@ async function flushOfflineTransactionQueue(): Promise<number> {
       count += chunk.length;
     }
     const latestQueue = parseQueue();
-    const remaining = latestQueue.filter(item => snapshotById.get(String(item?.id)) !== snapshotItem(item));
-    persistQueue(remaining);
+    persistQueue(latestQueue.filter(item => snapshotById.get(String(item?.id)) !== snapshotItem(item)));
     return count;
   })().finally(() => { queueFlushPromise = null; });
   return queueFlushPromise;
@@ -81,18 +85,17 @@ export const dbManager = {
     healthStatus.local = { status: 'healthy', message: `Offline queue พร้อมใช้งาน (${parseQueue().length} รายการ)` };
     if (!isOnline) { healthStatus.firebase = { status: 'offline', latencyMs: 0, message: 'อุปกรณ์ออฟไลน์ — รอซิงค์เมื่อกลับมาออนไลน์' }; actualProvider = 'local'; notifySubscribers(); return healthStatus; }
     const started = Date.now();
-    const signedIn = await waitForAuthReady();
-    const latencyMs = Date.now() - started;
-    if (!signedIn) {
-      healthStatus.firebase = { status: 'error', latencyMs, message: 'ยังไม่มี Firebase user session — กรุณาเข้าสู่ระบบก่อนซิงค์' };
-      actualProvider = 'local'; this.addErrorLog('firebase', 'Authentication Required', healthStatus.firebase.message, false); notifySubscribers(); return healthStatus;
+    try {
+      await waitForFirestoreWriteAccess();
+      healthStatus.firebase = { status: 'healthy', latencyMs: Date.now() - started, message: 'Firebase session และสิทธิ์ Firestore พร้อมซิงค์ข้อมูล' }; actualProvider = 'firebase';
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      healthStatus.firebase = { status: 'error', latencyMs: Date.now() - started, message }; actualProvider = 'local'; this.addErrorLog('firebase', 'Authentication / Permission Required', message, false);
     }
-    healthStatus.firebase = { status: 'healthy', latencyMs, message: 'Firebase session พร้อมซิงค์ข้อมูล' }; actualProvider = 'firebase'; notifySubscribers(); return healthStatus;
+    notifySubscribers(); return healthStatus;
   },
   async flushOfflineQueue(): Promise<number> {
     if (typeof navigator !== 'undefined' && !navigator.onLine) throw new Error('อุปกรณ์ออฟไลน์: รอการเชื่อมต่ออินเทอร์เน็ตก่อนซิงค์');
-    const signedIn = await waitForAuthReady();
-    if (!signedIn) throw new Error('Firebase Authentication ยังไม่พร้อมใช้งาน');
     const count = await flushOfflineTransactionQueue();
     healthStatus.firebase = { status: 'healthy', latencyMs: healthStatus.firebase.latencyMs, message: count > 0 ? `ซิงค์สำเร็จ ${count} รายการ` : 'ไม่มีรายการค้างสำหรับซิงค์' };
     actualProvider = 'firebase';
@@ -102,24 +105,16 @@ export const dbManager = {
   async syncDatabases(): Promise<{ success: boolean; stats: SyncStats }> {
     const stats: SyncStats = { transactions: 0, customers: 0, appointments: 0, warranties: 0, quickNotes: 0 };
     const toastId = toast.loading('กำลังซิงค์ข้อมูลกับ Firebase Firestore...');
-    try {
-      stats.transactions = await this.flushOfflineQueue();
-      toast.success(stats.transactions > 0 ? `☁️ ซิงค์สำเร็จ ${stats.transactions} รายการ` : '☁️ ไม่มีรายการค้างสำหรับซิงค์', { id: toastId });
-      return { success: true, stats };
-    } catch (error: any) {
-      const message = error?.message || 'ระบบขัดข้อง';
-      this.addErrorLog('firebase', 'Sync Error', message, false);
-      healthStatus.firebase = { status: 'error', latencyMs: healthStatus.firebase.latencyMs, message }; actualProvider = 'local'; notifySubscribers();
-      toast.error(`การซิงค์ Firebase ล้มเหลว: ${message}`, { id: toastId }); return { success: false, stats };
-    }
+    try { stats.transactions = await this.flushOfflineQueue(); toast.success(stats.transactions > 0 ? `☁️ ซิงค์สำเร็จ ${stats.transactions} รายการ` : '☁️ ไม่มีรายการค้างสำหรับซิงค์', { id: toastId }); return { success: true, stats }; }
+    catch (error: any) { const message = error?.message || 'ระบบขัดข้อง'; this.addErrorLog('firebase', 'Sync Error', message, false); healthStatus.firebase = { status: 'error', latencyMs: healthStatus.firebase.latencyMs, message }; actualProvider = 'local'; notifySubscribers(); toast.error(`การซิงค์ Firebase ล้มเหลว: ${message}`, { id: toastId }); return { success: false, stats }; }
   },
   getErrorLogs(): DbSyncError[] { try { return JSON.parse(localStorage.getItem('solar_db_sync_errors') || '[]'); } catch { return []; } },
   clearErrorLogs() { localStorage.setItem('solar_db_sync_errors', '[]'); notifySubscribers(); },
-  addErrorLog(source: DbSyncError['source'], errorType: string, errorMessage: string, autoFailoverTriggered: boolean) { try { const logs = this.getErrorLogs(); const newLog: DbSyncError = { id: `err_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, timestamp: new Date().toISOString(), source, errorType, errorMessage, autoFailoverTriggered }; localStorage.setItem('solar_db_sync_errors', JSON.stringify([newLog, ...logs].slice(0, 50))); notifySubscribers(); } catch (error) { console.error('Failed to save database error log:', error); } },
+  addErrorLog(source: DbSyncError['source'], errorType: string, errorMessage: string, autoFailoverTriggered: boolean) { try { const logs = this.getErrorLogs(); const entry: DbSyncError = { id: `err_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, timestamp: new Date().toISOString(), source, errorType, errorMessage, autoFailoverTriggered }; localStorage.setItem('solar_db_sync_errors', JSON.stringify([entry, ...logs].slice(0, 50))); notifySubscribers(); } catch (error) { console.error('Failed to save database error log:', error); } },
 };
 
 if (typeof window !== 'undefined') {
-  onAuthStateChanged(auth, (user) => { if (user && navigator.onLine) void dbManager.flushOfflineQueue().catch(error => dbManager.addErrorLog('firebase', 'Automatic Queue Flush Failed', error instanceof Error ? error.message : String(error), false)); });
+  onAuthStateChanged(auth, user => { if (user && navigator.onLine) void dbManager.flushOfflineQueue().catch(error => dbManager.addErrorLog('firebase', 'Automatic Queue Flush Failed', error instanceof Error ? error.message : String(error), false)); });
   window.addEventListener('online', () => { void dbManager.flushOfflineQueue().catch(error => dbManager.addErrorLog('network', 'Automatic Queue Flush Failed', error instanceof Error ? error.message : String(error), false)); });
   window.addEventListener('offline', () => { void dbManager.runDiagnostics(); });
   setTimeout(() => { void dbManager.flushOfflineQueue().catch(() => undefined); }, 1000);
