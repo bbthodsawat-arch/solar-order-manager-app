@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { toast } from 'react-hot-toast';
 
@@ -19,10 +19,37 @@ let healthStatus: DbHealthStatus = {
   local: { status: 'healthy', message: 'พร้อมใช้งานเป็น offline queue/cache' },
   firebase: { status: 'healthy', latencyMs: 0, message: 'รอตรวจสอบการเชื่อมต่อ' },
 };
+let queueFlushPromise: Promise<number> | null = null;
 
 function notifySubscribers() { const state = { preferredProvider, actualProvider, autoFailover: false, health: healthStatus }; subscribers.forEach(cb => { try { cb(state); } catch (err) { console.error('Database subscriber error:', err); } }); }
 function recalculateActualProvider() { actualProvider = typeof navigator !== 'undefined' && !navigator.onLine ? 'local' : preferredProvider; }
 function parseQueue(): any[] { try { return JSON.parse(localStorage.getItem('offline_transactions_queue') || '[]'); } catch { return []; } }
+
+/** Flushes the shared transaction queue with deterministic document IDs.
+ * Repeated/concurrent attempts are idempotent because every queued item keeps its local ID.
+ */
+async function flushOfflineTransactionQueue(): Promise<number> {
+  if (queueFlushPromise) return queueFlushPromise;
+  queueFlushPromise = (async () => {
+    const localQueue = parseQueue();
+    if (!localQueue.length) return 0;
+    const batch = writeBatch(db);
+    let count = 0;
+    for (const item of localQueue) {
+      if (!item?.id) continue;
+      const cleanItem = { ...item };
+      delete cleanItem.id;
+      delete cleanItem.hasPendingWrites;
+      batch.set(doc(db, 'transactions', String(item.id)), JSON.parse(JSON.stringify(cleanItem)), { merge: true });
+      count++;
+    }
+    await batch.commit();
+    localStorage.setItem('offline_transactions_queue', '[]');
+    window.dispatchEvent(new Event('solar_offline_queue_changed'));
+    return count;
+  })().finally(() => { queueFlushPromise = null; });
+  return queueFlushPromise;
+}
 
 export const dbManager = {
   getPreferredProvider(): DbProvider { return preferredProvider; },
@@ -52,29 +79,24 @@ export const dbManager = {
     }
     notifySubscribers(); return healthStatus;
   },
+  async flushOfflineQueue(): Promise<number> {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return 0;
+    await this.runDiagnostics();
+    if (healthStatus.firebase.status !== 'healthy') throw new Error('Firebase Firestore ไม่พร้อมใช้งาน');
+    const count = await flushOfflineTransactionQueue();
+    if (count > 0) {
+      localStorage.setItem('solar_last_sync_success_local', new Date().toISOString());
+      localStorage.setItem('solar_last_sync_success_firebase', new Date().toISOString());
+    }
+    return count;
+  },
   async syncDatabases(): Promise<{ success: boolean; stats: SyncStats }> {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     const stats: SyncStats = { transactions: 0, customers: 0, appointments: 0, warranties: 0, quickNotes: 0 };
     if (!isOnline) throw new Error('อุปกรณ์ออฟไลน์: Firestore SDK จะเก็บงานไว้ใน offline queue/cache');
     const toastId = toast.loading('กำลังซิงค์ข้อมูลกับ Firebase Firestore...');
     try {
-      await this.runDiagnostics();
-      if (healthStatus.firebase.status !== 'healthy') throw new Error('Firebase Firestore ไม่พร้อมใช้งาน');
-      const localQueue = parseQueue();
-      if (localQueue.length) {
-        const batch = writeBatch(db);
-        for (const item of localQueue) {
-          if (!item?.id) continue;
-          const cleanItem = { ...item };
-          delete cleanItem.hasPendingWrites;
-          batch.set(doc(db, 'transactions', String(item.id)), JSON.parse(JSON.stringify(cleanItem)), { merge: true });
-          stats.transactions++;
-        }
-        await batch.commit();
-        localStorage.setItem('offline_transactions_queue', '[]');
-      }
-      localStorage.setItem('solar_last_sync_success_local', new Date().toISOString());
-      localStorage.setItem('solar_last_sync_success_firebase', new Date().toISOString());
+      stats.transactions = await this.flushOfflineQueue();
       await this.runDiagnostics();
       toast.success('☁️ ซิงค์กับ Firebase Firestore สำเร็จ', { id: toastId });
       return { success: true, stats };
@@ -98,7 +120,11 @@ export const dbManager = {
 };
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => { void dbManager.runDiagnostics(); });
+  window.addEventListener('online', () => {
+    void dbManager.runDiagnostics().then(() => dbManager.flushOfflineQueue()).catch((error) => {
+      dbManager.addErrorLog('network', 'Automatic Queue Flush Failed', error instanceof Error ? error.message : String(error), false);
+    });
+  });
   window.addEventListener('offline', () => { void dbManager.runDiagnostics(); });
-  setTimeout(() => { void dbManager.runDiagnostics(); }, 1000);
+  setTimeout(() => { void dbManager.runDiagnostics().then(() => dbManager.flushOfflineQueue()).catch(() => undefined); }, 1000);
 }

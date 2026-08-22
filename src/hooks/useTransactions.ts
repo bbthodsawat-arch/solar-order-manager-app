@@ -35,21 +35,14 @@ function isRetryableFirestoreError(error: any): boolean {
     || /network|offline|failed to fetch|quota|temporarily unavailable/i.test(String(error?.message || ''));
 }
 
-// Process-wide lock: several dashboard widgets can mount this hook at once.
-// Only one instance may upload the shared offline queue.
 let offlineSyncPromise: Promise<void> | null = null;
 let offlineSyncCooldownUntil = 0;
 
 export function useTransactions() {
   const [firestoreTransactions, setFirestoreTransactions] = useState<Transaction[]>([]);
   const [offlineQueue, setOfflineQueue] = useState<Transaction[]>(() => {
-    try {
-      const saved = localStorage.getItem('offline_transactions_queue');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      console.error('Failed to parse offline transactions queue:', e);
-      return [];
-    }
+    try { const saved = localStorage.getItem('offline_transactions_queue'); return saved ? JSON.parse(saved) : []; }
+    catch (e) { console.error('Failed to parse offline transactions queue:', e); return []; }
   });
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
@@ -58,21 +51,12 @@ export function useTransactions() {
   const lastQuotaExhaustedRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!user) {
-      setFirestoreTransactions([]);
-      setLoading(false);
-      return;
-    }
+    if (!user) { setFirestoreTransactions([]); setLoading(false); return; }
     const q = query(collection(db, 'transactions'), orderBy('date', 'desc'));
     const unsubscribe = onSnapshot(q, { includeMetadataChanges: false }, (snapshot) => {
-      const txs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), hasPendingWrites: doc.metadata.hasPendingWrites })) as Transaction[];
-      setFirestoreTransactions(txs);
+      setFirestoreTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), hasPendingWrites: doc.metadata.hasPendingWrites })) as Transaction[]);
       setLoading(false);
-    }, (error) => {
-      console.error('Error fetching transactions:', error);
-      handleFirestoreError(error, OperationType.LIST, 'transactions');
-      setLoading(false);
-    });
+    }, (error) => { console.error('Error fetching transactions:', error); handleFirestoreError(error, OperationType.LIST, 'transactions'); setLoading(false); });
     return () => unsubscribe();
   }, [user]);
 
@@ -86,197 +70,75 @@ export function useTransactions() {
     if (offlineSyncPromise) return offlineSyncPromise;
     const cooldownUntil = Math.max(lastQuotaExhaustedRef.current, offlineSyncCooldownUntil);
     if (Date.now() <= cooldownUntil) return;
-
     offlineSyncPromise = (async () => {
       let currentQueue: Transaction[] = [];
-      try {
-        const saved = localStorage.getItem('offline_transactions_queue');
-        currentQueue = saved ? JSON.parse(saved) : [];
-      } catch (e) {
-        console.error('Error reading offline queue for sync:', e);
-        return;
-      }
+      try { const saved = localStorage.getItem('offline_transactions_queue'); currentQueue = saved ? JSON.parse(saved) : []; }
+      catch (e) { console.error('Error reading offline queue for sync:', e); return; }
       if (currentQueue.length === 0) return;
-
       isSyncingRef.current = true;
       const remaining: Transaction[] = [];
-
-      // Automatic background sync is intentionally silent. The previous
-      // implementation showed a toast here; multiple mounted hook instances
-      // could make the same notification visually stack on mobile.
       try {
         for (let i = 0; i < currentQueue.length; i++) {
           const tx = currentQueue[i];
           try {
             const { id, hasPendingWrites, ...cleanTx } = tx;
-            const cleanedData = removeUndefinedFields({
-              ...cleanTx,
-              createdAt: cleanTx.createdAt || new Date().toISOString(),
-              createdBy: cleanTx.createdBy || user.uid,
-            });
-            const docRef = await addDoc(collection(db, 'transactions'), cleanedData);
+            const cleanedData = removeUndefinedFields({ ...cleanTx, createdAt: cleanTx.createdAt || new Date().toISOString(), createdBy: cleanTx.createdBy || user.uid });
+            // Preserve the queue ID. dbManager and this hook may both retry after reconnect;
+            // deterministic IDs make repeated writes idempotent instead of creating duplicates.
+            await setDoc(doc(db, 'transactions', String(id)), cleanedData, { merge: true });
             try {
-              await logAuditEvent({
-                action: 'TRANSACTION_CREATE',
-                category: 'transaction',
-                targetId: docRef.id,
-                targetName: `${cleanTx.detail || cleanTx.category} (฿${cleanTx.amount?.toLocaleString()})`,
-                details: `[ออฟไลน์ซิงก์สำเร็จ] กู้คืนและบันทึกรายการ ${cleanTx.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${cleanTx.category}]`,
-                newData: cleanedData,
-              });
-            } catch (auditError) {
-              console.error('Offline transaction synced but audit log failed:', auditError);
-            }
+              await logAuditEvent({ action: 'TRANSACTION_CREATE', category: 'transaction', targetId: String(id), targetName: `${cleanTx.detail || cleanTx.category} (฿${cleanTx.amount?.toLocaleString()})`, details: `[ออฟไลน์ซิงก์สำเร็จ] กู้คืนและบันทึกรายการ ${cleanTx.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${cleanTx.category}]`, newData: cleanedData });
+            } catch (auditError) { console.error('Offline transaction synced but audit log failed:', auditError); }
           } catch (error: any) {
             console.warn('Error syncing offline transaction to Firebase:', error);
             remaining.push(tx, ...currentQueue.slice(i + 1));
             if (isRetryableFirestoreError(error)) {
               const retryDelay = error?.code === 'resource-exhausted' ? 5 * 60 * 1000 : 30 * 1000;
-              lastQuotaExhaustedRef.current = Date.now() + retryDelay;
-              offlineSyncCooldownUntil = Date.now() + retryDelay;
-            } else {
-              toast.error('ไม่สามารถซิงค์ออเดอร์ออฟไลน์ได้ เนื่องจากสิทธิ์หรือข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่', { id: 'offline-queue-sync-error' });
-            }
+              lastQuotaExhaustedRef.current = Date.now() + retryDelay; offlineSyncCooldownUntil = Date.now() + retryDelay;
+            } else toast.error('ไม่สามารถซิงค์ออเดอร์ออฟไลน์ได้ เนื่องจากสิทธิ์หรือข้อมูลไม่ถูกต้อง กรุณาตรวจสอบแล้วลองใหม่', { id: 'offline-queue-sync-error' });
             break;
           }
         }
-
         localStorage.setItem('offline_transactions_queue', JSON.stringify(remaining));
-        setOfflineQueue(remaining);
-        window.dispatchEvent(new Event('solar_offline_queue_changed'));
-      } catch (error) {
-        console.error('Offline queue persistence failed:', error);
-      } finally {
-        isSyncingRef.current = false;
-      }
-    })().finally(() => {
-      offlineSyncPromise = null;
-    });
-
+        setOfflineQueue(remaining); window.dispatchEvent(new Event('solar_offline_queue_changed'));
+      } catch (error) { console.error('Offline queue persistence failed:', error); }
+      finally { isSyncingRef.current = false; }
+    })().finally(() => { offlineSyncPromise = null; });
     return offlineSyncPromise;
   };
 
-  useEffect(() => {
-    if (isOnline && user && offlineQueue.length > 0 && Date.now() > Math.max(lastQuotaExhaustedRef.current, offlineSyncCooldownUntil)) {
-      void syncOfflineQueue();
-    }
-  }, [isOnline, user, offlineQueue.length]);
+  useEffect(() => { if (isOnline && user && offlineQueue.length > 0 && Date.now() > Math.max(lastQuotaExhaustedRef.current, offlineSyncCooldownUntil)) void syncOfflineQueue(); }, [isOnline, user, offlineQueue.length]);
 
   const addTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt' | 'createdBy'>) => {
     if (!user) throw new Error('ต้องเข้าสู่ระบบก่อนสร้างรายการ');
     const tempId = `offline_queued_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const cleanedData = removeUndefinedFields({ ...transaction, createdAt: new Date().toISOString(), createdBy: user.uid });
     const queueOffline = () => {
-      const offlineTx: Transaction = { id: tempId, ...cleanedData, hasPendingWrites: true };
-      const updatedQueue = [...offlineQueue, offlineTx];
-      setOfflineQueue(updatedQueue);
+      const offlineTx: Transaction = { id: tempId, ...cleanedData, hasPendingWrites: true }; const updatedQueue = [...offlineQueue, offlineTx]; setOfflineQueue(updatedQueue);
       try { localStorage.setItem('offline_transactions_queue', JSON.stringify(updatedQueue)); } catch (e) { console.error('Failed to write transaction queue to localStorage:', e); }
-      window.dispatchEvent(new Event('solar_offline_queue_changed'));
-      toast.success('💾 จัดเก็บออฟไลน์เรียบร้อย! รายการจะซิงค์ขึ้นระบบคลาวด์อัตโนมัติเมื่ออินเทอร์เน็ตพร้อมใช้งาน', { id: 'offline-queued-success', icon: '📡', duration: 5000 });
-      return tempId;
+      window.dispatchEvent(new Event('solar_offline_queue_changed')); toast.success('💾 จัดเก็บออฟไลน์เรียบร้อย! รายการจะซิงค์ขึ้นระบบคลาวด์อัตโนมัติเมื่ออินเทอร์เน็ตพร้อมใช้งาน', { id: 'offline-queued-success', icon: '📡', duration: 5000 }); return tempId;
     };
     if (!isOnline || dbManager.getActualProvider() === 'local') return queueOffline();
     try {
       const docRef = await addDoc(collection(db, 'transactions'), cleanedData);
-      try {
-        await logAuditEvent({
-          action: 'TRANSACTION_CREATE', category: 'transaction', targetId: docRef.id,
-          targetName: `${transaction.detail || transaction.category} (฿${transaction.amount?.toLocaleString()})`,
-          details: `สร้างรายการ ${transaction.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${transaction.category}] รายละเอียด: \"${transaction.detail || '-'}\" จำนวน ฿${transaction.amount?.toLocaleString()}`,
-          newData: cleanedData,
-        });
-      } catch (auditError) {
-        console.error('Transaction created but audit log failed:', auditError);
-      }
+      try { await logAuditEvent({ action: 'TRANSACTION_CREATE', category: 'transaction', targetId: docRef.id, targetName: `${transaction.detail || transaction.category} (฿${transaction.amount?.toLocaleString()})`, details: `สร้างรายการ ${transaction.type === 'income' ? 'รายรับ' : 'รายจ่าย'} หมวดหมู่ [${transaction.category}] รายละเอียด: \"${transaction.detail || '-'}\" จำนวน ฿${transaction.amount?.toLocaleString()}`, newData: cleanedData }); } catch (auditError) { console.error('Transaction created but audit log failed:', auditError); }
       return docRef.id;
-    } catch (error: any) {
-      console.error('Error adding transaction to Firestore:', error);
-      if (isRetryableFirestoreError(error)) return queueOffline();
-      handleFirestoreError(error, OperationType.CREATE, 'transactions');
-      throw error;
-    }
+    } catch (error: any) { console.error('Error adding transaction to Firestore:', error); if (isRetryableFirestoreError(error)) return queueOffline(); handleFirestoreError(error, OperationType.CREATE, 'transactions'); throw error; }
   };
 
   const deleteTransaction = async (id: string) => {
-    if (id.startsWith('offline_queued_')) {
-      const remaining = offlineQueue.filter(t => t.id !== id);
-      setOfflineQueue(remaining);
-      try { localStorage.setItem('offline_transactions_queue', JSON.stringify(remaining)); } catch (e) { console.error('Failed to update localStorage offline queue:', e); }
-      window.dispatchEvent(new Event('solar_offline_queue_changed'));
-      toast.success('ลบรายการที่ค้างคิวออฟไลน์เรียบร้อยแล้ว');
-      return;
-    }
-    try {
-      const existingTx = transactions.find(t => t.id === id);
-      await deleteDoc(doc(db, 'transactions', id));
-      await logAuditEvent({
-        action: 'TRANSACTION_DELETE', category: 'transaction', targetId: id,
-        targetName: existingTx ? `${existingTx.detail || existingTx.category} (฿${existingTx.amount?.toLocaleString()})` : id,
-        details: `ลบรายการธุรกรรม ${existingTx?.type === 'income' ? 'รายรับ' : 'รายจ่าย'}: \"${existingTx?.detail || existingTx?.category || id}\" ยอดเงิน ฿${existingTx?.amount?.toLocaleString() || 0}`,
-        previousData: existingTx || null,
-      });
-    } catch (error) {
-      console.error('Error deleting transaction:', error);
-      throw error;
-    }
+    if (id.startsWith('offline_queued_')) { const remaining = offlineQueue.filter(t => t.id !== id); setOfflineQueue(remaining); try { localStorage.setItem('offline_transactions_queue', JSON.stringify(remaining)); } catch (e) { console.error('Failed to update localStorage offline queue:', e); } window.dispatchEvent(new Event('solar_offline_queue_changed')); toast.success('ลบรายการที่ค้างคิวออฟไลน์เรียบร้อยแล้ว'); return; }
+    try { const existingTx = transactions.find(t => t.id === id); await deleteDoc(doc(db, 'transactions', id)); await logAuditEvent({ action: 'TRANSACTION_DELETE', category: 'transaction', targetId: id, targetName: existingTx ? `${existingTx.detail || existingTx.category} (฿${existingTx.amount?.toLocaleString()})` : id, details: `ลบรายการธุรกรรม ${existingTx?.type === 'income' ? 'รายรับ' : 'รายจ่าย'}: \"${existingTx?.detail || existingTx?.category || id}\" ยอดเงิน ฿${existingTx?.amount?.toLocaleString() || 0}`, previousData: existingTx || null }); } catch (error) { console.error('Error deleting transaction:', error); throw error; }
   };
 
   const updateTransaction = async (id: string, updates: Partial<Omit<Transaction, 'id' | 'createdAt' | 'createdBy'>>) => {
-    if (id.startsWith('offline_queued_')) {
-      const updated = offlineQueue.map(t => t.id === id ? { ...t, ...updates } : t);
-      setOfflineQueue(updated);
-      try { localStorage.setItem('offline_transactions_queue', JSON.stringify(updated)); } catch (e) { console.error('Failed to update localStorage queue:', e); }
-      window.dispatchEvent(new Event('solar_offline_queue_changed'));
-      toast.success('แก้ไขรายการในคิวออฟไลน์เรียบร้อยแล้ว');
-      return;
-    }
-    try {
-      const existingTx = transactions.find(t => t.id === id);
-      await updateDoc(doc(db, 'transactions', id), prepareUpdateData(updates));
-      await logAuditEvent({
-        action: 'TRANSACTION_UPDATE', category: 'transaction', targetId: id,
-        targetName: existingTx ? `${existingTx.detail || existingTx.category} (฿${existingTx.amount?.toLocaleString()})` : id,
-        details: `แก้ไขข้อมูลรายการธุรกรรม \"${existingTx?.detail || existingTx?.category || id}\"`,
-        previousData: existingTx || null, newData: updates,
-      });
-    } catch (error) {
-      console.error('Error updating transaction:', error);
-      throw error;
-    }
+    if (id.startsWith('offline_queued_')) { const updated = offlineQueue.map(t => t.id === id ? { ...t, ...updates } : t); setOfflineQueue(updated); try { localStorage.setItem('offline_transactions_queue', JSON.stringify(updated)); } catch (e) { console.error('Failed to update localStorage queue:', e); } window.dispatchEvent(new Event('solar_offline_queue_changed')); toast.success('แก้ไขรายการในคิวออฟไลน์เรียบร้อยแล้ว'); return; }
+    try { const existingTx = transactions.find(t => t.id === id); await updateDoc(doc(db, 'transactions', id), prepareUpdateData(updates)); await logAuditEvent({ action: 'TRANSACTION_UPDATE', category: 'transaction', targetId: id, targetName: existingTx ? `${existingTx.detail || existingTx.category} (฿${existingTx.amount?.toLocaleString()})` : id, details: `แก้ไขข้อมูลรายการธุรกรรม \"${existingTx?.detail || existingTx?.category || id}\"`, previousData: existingTx || null, newData: updates }); } catch (error) { console.error('Error updating transaction:', error); throw error; }
   };
 
-  const restoreTransaction = async (id: string, data: Transaction) => {
-    try {
-      const { id: _, ...rest } = data;
-      const cleanedData = removeUndefinedFields(rest);
-      await setDoc(doc(db, 'transactions', id), cleanedData);
-      await logAuditEvent({
-        action: 'TRANSACTION_RESTORE', category: 'transaction', targetId: id,
-        targetName: `${data.detail || data.category} (฿${data.amount?.toLocaleString()})`,
-        details: `กู้คืนรายการธุรกรรมที่ถูกลบไปแล้ว: \"${data.detail || data.category}\" ยอดเงิน ฿${data.amount?.toLocaleString()}`,
-        newData: data,
-      });
-    } catch (error) {
-      console.error('Error restoring transaction:', error);
-      throw error;
-    }
-  };
+  const restoreTransaction = async (id: string, data: Transaction) => { try { const { id: _, ...rest } = data; const cleanedData = removeUndefinedFields(rest); await setDoc(doc(db, 'transactions', id), cleanedData); await logAuditEvent({ action: 'TRANSACTION_RESTORE', category: 'transaction', targetId: id, targetName: `${data.detail || data.category} (฿${data.amount?.toLocaleString()})`, details: `กู้คืนรายการที่ถูกลบไปแล้ว: \"${data.detail || data.category}\" ยอดเงิน ฿${data.amount?.toLocaleString()}`, newData: data }); } catch (error) { console.error('Error restoring transaction:', error); throw error; } };
 
-  const deleteAllTransactions = async () => {
-    try {
-      const count = transactions.length;
-      const batch = writeBatch(db);
-      transactions.forEach(tx => { if (tx.id && !tx.id.startsWith('offline_queued_')) batch.delete(doc(db, 'transactions', tx.id)); });
-      await batch.commit();
-      setOfflineQueue([]);
-      try { localStorage.removeItem('offline_transactions_queue'); } catch (e) { console.error('Failed to clear localStorage offline queue:', e); }
-      window.dispatchEvent(new Event('solar_offline_queue_changed'));
-      await logAuditEvent({ action: 'TRANSACTION_BATCH_DELETE', category: 'transaction', targetId: 'ALL', targetName: `ล้างข้อมูลธุรกรรมทั้งหมด ${count} รายการ`, details: `ลบรายการธุรกรรมทั้งหมดในระบบจำนวน ${count} รายการ (รวมถึงออฟไลน์คิว)` });
-    } catch (error) {
-      console.error('Error deleting all transactions:', error);
-      throw error;
-    }
-  };
+  const deleteAllTransactions = async () => { try { const count = transactions.length; const batch = writeBatch(db); transactions.forEach(tx => { if (tx.id && !tx.id.startsWith('offline_queued_')) batch.delete(doc(db, 'transactions', tx.id)); }); await batch.commit(); setOfflineQueue([]); try { localStorage.removeItem('offline_transactions_queue'); } catch (e) { console.error('Failed to clear localStorage offline queue:', e); } window.dispatchEvent(new Event('solar_offline_queue_changed')); await logAuditEvent({ action: 'TRANSACTION_BATCH_DELETE', category: 'transaction', targetId: 'ALL', targetName: `ล้างข้อมูลธุรกรรมทั้งหมด ${count} รายการ`, details: `ลบรายการธุรกรรมทั้งหมดในระบบจำนวน ${count} รายการ (รวมถึงออฟไลน์คิว)` }); } catch (error) { console.error('Error deleting all transactions:', error); throw error; } };
 
   const pendingCount = transactions.filter(t => t.hasPendingWrites || t.id?.startsWith('offline_queued_')).length;
   return { transactions, loading, pendingCount, addTransaction, deleteTransaction, updateTransaction, restoreTransaction, deleteAllTransactions };
