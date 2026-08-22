@@ -8,13 +8,11 @@ export const FACTORY_RESET_COLLECTIONS = ['transactions','customers','appointmen
 export type FactoryResetCollection = typeof FACTORY_RESET_COLLECTIONS[number];
 export type FactoryResetProgress = { collection: FactoryResetCollection | 'app_config'; completed: number; total: number; phase: 'deleting' | 'verifying' | 'complete' };
 const BATCH_LIMIT = 450;
-const OWNER_EMAIL = 'b.b.thodsawat@gmail.com';
 
-/** Authorize again at execution time; the destructive service must not rely only on UI visibility. */
+/** Authorize again at execution time; the destructive service never trusts UI visibility alone. */
 export async function assertFactoryResetAuthorized(): Promise<void> {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error('Factory reset requires an authenticated user');
-  if (currentUser.email?.toLowerCase() === OWNER_EMAIL) return;
 
   const profile = await getDoc(doc(db, 'users', currentUser.uid));
   const data = profile.exists() ? profile.data() : null;
@@ -40,6 +38,7 @@ async function deleteCollectionInBatches(collectionName: FactoryResetCollection,
     onProgress?.({ collection: collectionName, completed, total, phase: 'deleting' });
   }
   const remaining = await getDocs(collection(db, collectionName));
+  onProgress?.({ collection: collectionName, completed: total, total, phase: 'verifying' });
   if (!remaining.empty) throw new Error(`Factory reset verification failed for ${collectionName}: ${remaining.size} documents remain`);
   onProgress?.({ collection: collectionName, completed: total, total, phase: 'complete' });
   return total;
@@ -95,10 +94,11 @@ export async function clearLocalApplicationState(): Promise<void> {
     await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
   }
   try {
+    // Firestore must be terminated before its already-started persistent cache can be cleared.
     await terminate(db);
     await clearIndexedDbPersistence(db);
   } catch (error) {
-    // Cache cleanup is best-effort; the server-side reset is already verified.
+    // Cache cleanup is best-effort; server-side reset has already been verified.
     console.warn('[Factory reset] Firestore local cache cleanup was unavailable:', error);
   }
 }
