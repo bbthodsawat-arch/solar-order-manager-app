@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "npm run typecheck && node scripts/patch-pos-build.mjs && node scripts/patch-brand-ui.mjs && rm -rf dist node_modules/.vite && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist/server.cjs",
+    "build": "npm install --no-save --ignore-scripts --no-audit --no-fund react-hot-toast@2.6.0 && npm run typecheck && node scripts/patch-pos-build.mjs && node scripts/patch-brand-ui.mjs && rm -rf dist node_modules/.vite && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist node_modules/.vite",
@@ -35,6 +35,7 @@
     "qrcode.react": "^4.2.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-hot-toast": "^2.6.0",
     "recharts": "^3.10.1",
     "tailwindcss": "^4.1.14",
     "thai-address-select": "^1.0.5"
