@@ -11,6 +11,9 @@ const firebase = readFileSync('src/lib/firebase.ts', 'utf8');
 const dbManager = readFileSync('src/lib/dbManager.ts', 'utf8');
 const transactionsHook = readFileSync('src/hooks/useTransactions.ts', 'utf8');
 const cloudStatusHook = readFileSync('src/hooks/useCloudSyncStatus.ts', 'utf8');
+const resetService = readFileSync('src/lib/systemResetService.ts', 'utf8');
+const resetComponent = readFileSync('src/components/SystemResetSettings.tsx', 'utf8');
+const customersHook = readFileSync('src/hooks/useCustomers.ts', 'utf8');
 assert.match(firebase, /persistentLocalCache\(/, 'Firestore must use a persistent local cache for reload-safe offline sync');
 assert.match(firebase, /persistentSingleTabManager\(/, 'persistent cache must define a tab manager');
 assert.match(firebase, /function createFirestore\(/, 'Firestore initialization must safely handle existing app instances');
@@ -25,5 +28,16 @@ assert.match(transactionsHook, /start \+= 450/, 'bulk deletion must respect Fire
 assert.match(transactionsHook, /await dbManager\.flushOfflineQueue\(\)/, 'transaction hook must use the shared queue flusher');
 assert.match(cloudStatusHook, /await dbManager\.flushOfflineQueue\(\)/, 'manual and interval sync must use the shared queue flusher');
 assert.doesNotMatch(cloudStatusHook, /addDoc\(/, 'manual sync must not create a second ID-generating upload path');
+assert.match(customersHook, /start \+= 450/, 'customer factory reset deletion must respect Firestore batch limits');
+assert.match(customersHook, /Customer reset verification failed/, 'customer deletion must verify no documents remain');
+assert.match(resetService, /FACTORY_RESET_COLLECTIONS/, 'factory reset must use an explicit business-data scope');
+assert.match(resetService, /BATCH_LIMIT = 450/, 'factory reset must stay below Firestore batch limits');
+assert.match(resetService, /resetAppConfigToFactoryDefaults/, 'factory reset must persist a known default configuration');
+assert.match(resetService, /Factory reset verification failed/, 'factory reset must verify destructive operations');
+assert.match(resetComponent, /isAdminOrOwner/, 'factory reset UI must be admin/owner only');
+assert.match(resetComponent, /permissions\.canManageDatabase/, 'factory reset UI must require database permission');
+assert.match(resetComponent, /factory_reset_started/, 'factory reset must create an audit trail');
+assert.match(resetComponent, /factory_reset_failed/, 'failed factory reset must be auditable');
+assert.match(resetComponent, /ไม่สมบูรณ์/, 'factory reset must never show false success after a failure');
 
-console.log('Cloud sync queue integrity checks passed');
+console.log('Cloud sync and factory reset integrity checks passed');
