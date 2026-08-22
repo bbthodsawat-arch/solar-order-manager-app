@@ -2,30 +2,26 @@ import { useState } from 'react';
 import type { CommandDefinition } from './registry';
 import BrandPaymentWorkspace from '../../components/BrandPaymentWorkspace';
 import BusinessDocumentsHub from '../../components/BusinessDocumentsHub';
-import CommandCenter from '../../pages/CommandCenter';
 import { LegacyCommandAdapter } from './LegacyCommandAdapter';
 import { useAuth } from '../../hooks/useAuth';
 import { getUserPermissions } from '../../utils/permissions';
 import { canAccessCommand } from './permissions';
+import { getCommand } from './registry';
 
-export type BusinessMigrationCommand = 'business.profile' | 'business.brand' | 'business.payment' | 'business.documents';
+export type BusinessMigrationCommand = 'business.profile' | 'business.brand' | 'business.documents';
 
 export const BUSINESS_MIGRATION_COMMANDS: CommandDefinition[] = [
-  { id:'business.profile', domain:'business', title:'ข้อมูลธุรกิจ', description:'ข้อมูลกิจการ บริษัท ที่อยู่ และข้อมูลพื้นฐาน', keywords:['business','company','profile','บริษัท'], permission:'canManageSettings', legacySection:'business' },
-  { id:'business.brand', domain:'business', title:'แบรนด์และอัตลักษณ์', description:'จัดการแบรนด์ โลโก้ และข้อมูลที่ใช้กับสินค้า', keywords:['brand','branding','logo','แบรนด์','โลโก้'], permission:'canManageSettings', legacySection:'branding', quickAction:true },
-  { id:'business.payment', domain:'business', title:'ช่องทางการชำระเงิน', description:'จัดการช่องทางชำระเงินและค่าเริ่มต้น', keywords:['payment','payments','ชำระเงิน'], permission:'canManageSettings', legacySection:'branding', quickAction:true },
-  { id:'business.documents', domain:'business', title:'ศูนย์เอกสารธุรกิจ', description:'Template เลขที่เอกสาร workflow และ archive', keywords:['document','template','numbering','workflow','archive','เอกสาร'], permission:'canManageDatabase', legacySection:'templates' },
-];
+  getCommand('business.profile')!,
+  getCommand('business.brand')!,
+  getCommand('business.documents')!,
+].filter(Boolean);
 
 interface Props {
-  onNavigateToUsers?: () => void;
-  onNavigateToAudit?: () => void;
-  onLockApp?: () => void;
   activeCommand?: BusinessMigrationCommand;
   onActiveCommandChange?: (command: BusinessMigrationCommand) => void;
 }
 
-export function BusinessMigrationWorkspace({ activeCommand, onActiveCommandChange, ...props }: Props) {
+export function BusinessMigrationWorkspace({ activeCommand, onActiveCommandChange }: Props) {
   const { appUser } = useAuth();
   const permissions = getUserPermissions(appUser);
   const [internalActive, setInternalActive] = useState<BusinessMigrationCommand>('business.brand');
@@ -34,17 +30,22 @@ export function BusinessMigrationWorkspace({ activeCommand, onActiveCommandChang
     setInternalActive(command);
     onActiveCommandChange?.(command);
   };
-  const command = BUSINESS_MIGRATION_COMMANDS.find(item => item.id === active);
+  const command = getCommand(active);
   const canRenderActive = command ? canAccessCommand(appUser, permissions, command.permission) : false;
+  const visibleCommands = BUSINESS_MIGRATION_COMMANDS.filter(item => canAccessCommand(appUser, permissions, item.permission));
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
-        {BUSINESS_MIGRATION_COMMANDS.filter(item => canAccessCommand(appUser, permissions, item.permission)).map(item => <button key={item.id} onClick={() => setActive(item.id as BusinessMigrationCommand)} className={`rounded-xl px-3 py-2 text-xs font-black transition ${active === item.id ? 'bg-brand text-white' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>{item.title}</button>)}
+        {visibleCommands.map(item => (
+          <button key={item.id} onClick={() => setActive(item.id as BusinessMigrationCommand)} className={`rounded-xl px-3 py-2 text-xs font-black transition ${active === item.id ? 'bg-brand text-white' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
+            {item.title}
+          </button>
+        ))}
       </div>
       {command && canRenderActive && (
         <LegacyCommandAdapter command={command}>
-          {active === 'business.documents' ? <BusinessDocumentsHub /> : active === 'business.profile' ? <CommandCenter {...props} /> : <BrandPaymentWorkspace />}
+          {active === 'business.documents' || active === 'business.profile' ? <BusinessDocumentsHub /> : <BrandPaymentWorkspace />}
         </LegacyCommandAdapter>
       )}
       {command && !canRenderActive && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm font-bold text-amber-800">คุณไม่มีสิทธิ์เข้าถึง workspace นี้</div>}
