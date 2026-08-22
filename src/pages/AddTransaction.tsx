@@ -121,7 +121,9 @@ export default function AddTransaction({
   const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
 
   // Customer Details
-  const [customer, setCustomer] = useState(() => {
+  const [customer, setCustomer] = useState<{
+  id?: string; name: string; address: string; district: string; province: string; zipcode: string; phone: string; customerTaxId?: string; customerBranch?: string; customerEmail?: string;
+}>(() => {
     try {
       const saved = localStorage.getItem('klangna_pos_customer');
       if (saved) return JSON.parse(saved);
@@ -158,7 +160,9 @@ export default function AddTransaction({
   });
 
   // Payment
-  const [payment, setPayment] = useState(() => {
+  const [payment, setPayment] = useState<{
+  status: 'paid' | 'unpaid'; method: string; date: string; receiptUrl: string | undefined;
+}>(() => {
     try {
       const saved = localStorage.getItem('klangna_pos_payment');
       if (saved) return JSON.parse(saved);
@@ -196,7 +200,9 @@ export default function AddTransaction({
   });
 
   // Income Form State (for income_entry mode)
-  const [incomeData, setIncomeData] = useState({
+  const [incomeData, setIncomeData] = useState<{
+  category: string; detail: string; amount: string; payer: string; paymentMethod: string; receiptUrl: string | undefined;
+}>({
     category: initialCategory || config.incomeCategories[0]?.name || 'รายรับอื่นๆ',
     detail: initialDetail || '',
     amount: initialAmount ? initialAmount.toString() : '',
@@ -535,9 +541,9 @@ export default function AddTransaction({
           district: customer.district.trim(),
           province: customer.province,
           zipcode: customer.zipcode.trim(),
-          customerTaxId: customer.customerTaxId.trim(),
-          customerBranch: customer.customerBranch.trim(),
-          email: customer.customerEmail.trim(),
+          customerTaxId: customer.customerTaxId?.trim() || '',
+          customerBranch: customer.customerBranch?.trim() || '',
+          email: customer.customerEmail?.trim() || '',
         });
       } catch (crmErr) {
         console.error('CRM customer creation notice:', crmErr);

@@ -24,7 +24,6 @@ export function useDatabase(): UseDatabaseResult {
   const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
-    // Subscribe to database manager state changes
     const unsubscribe = dbManager.subscribe((state) => {
       setDbState({
         preferredProvider: state.preferredProvider,
@@ -34,7 +33,9 @@ export function useDatabase(): UseDatabaseResult {
       });
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const setPreferredProvider = (provider: DbProvider) => {

@@ -11,6 +11,7 @@ import { Check, Copy, Eye, EyeOff, KeyRound, Plus, RefreshCw, Search, ShieldChec
 const OWNER_EMAIL = 'b.b.thodsawat@gmail.com';
 const ROLE_META: Record<UserRole, { label: string; desc: string }> = {
   admin: { label: 'Admin', desc: 'ควบคุมระบบ ผู้ใช้ ความปลอดภัย และข้อมูลทั้งหมด' },
+  owner: { label: 'Owner', desc: 'เจ้าของระบบและสิทธิ์ทั้งหมด' },
   manager: { label: 'Manager', desc: 'ดูแลการขาย ลูกค้า สต็อก และรายงาน' },
   staff: { label: 'Staff', desc: 'ทำงานประจำวันและจัดการรายการที่ได้รับมอบหมาย' },
   viewer: { label: 'Viewer', desc: 'ดูข้อมูลและรายงานแบบอ่านอย่างเดียว' },
@@ -39,7 +40,7 @@ export default function UserManagement() {
   const [showPassword, setShowPassword] = useState(true);
   const [permissionsUser, setPermissionsUser] = useState<AppUser | null>(null);
 
-  const isAdmin = appUser?.role === 'admin' || appUser?.email?.toLowerCase() === OWNER_EMAIL;
+  const isAdmin = appUser?.role === 'admin' || appUser?.role === 'owner' || appUser?.email?.toLowerCase() === OWNER_EMAIL;
 
   const loadUsers = async () => {
     if (!db) return;
@@ -87,7 +88,6 @@ export default function UserManagement() {
         uid, username, displayName, email, photoURL: null, role: newRole,
         permissions: DEFAULT_ROLE_PERMISSIONS[newRole], status: 'active', authProvider: 'password', createdAt: new Date().toISOString(),
       };
-      // Never persist a password or password hint in Firestore.
       await setDoc(doc(db, 'users', uid), profile);
       await logAuditEvent({ action: 'USER_CREATE', category: 'user', targetId: uid, targetName: `${username} (${displayName})`, details: `สร้างบัญชี ${newRole.toUpperCase()} ผ่าน Username/Password`, newData: { ...profile, password: undefined }, user: appUser });
       setUsers((prev) => [...prev, profile]);
@@ -95,9 +95,11 @@ export default function UserManagement() {
       setShowCreate(false);
       resetCreate();
       toast.success('สร้างผู้ใช้งานสำเร็จ');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      toast.error(error?.code === 'auth/email-already-in-use' ? 'อีเมลนี้ถูกใช้แล้ว' : `สร้างผู้ใช้ไม่สำเร็จ: ${error?.message || 'เกิดข้อผิดพลาด'}`);
+      const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
+      const message = typeof error === 'object' && error && 'message' in error ? String(error.message) : 'เกิดข้อผิดพลาด';
+      toast.error(code === 'auth/email-already-in-use' ? 'อีเมลนี้ถูกใช้แล้ว' : `สร้างผู้ใช้ไม่สำเร็จ: ${message}`);
     } finally { setBusy(null); }
   };
 
@@ -140,7 +142,7 @@ export default function UserManagement() {
 
   const resetPassword = async (target: AppUser) => {
     if (!isAdmin || !target.email) return toast.error('บัญชีนี้ไม่มีอีเมลสำหรับรีเซ็ตรหัสผ่าน');
-    try { setBusy(target.uid); const { error } = await sendUserPasswordResetEmail(target.email); if (error) throw error; toast.success('ส่งลิงก์รีเซ็ตรหัสผ่านแล้ว'); } catch (error: any) { toast.error(`ส่งลิงก์ไม่สำเร็จ: ${error?.message || 'เกิดข้อผิดพลาด'}`); } finally { setBusy(null); }
+    try { setBusy(target.uid); const { error } = await sendUserPasswordResetEmail(target.email); if (error) throw error; toast.success('ส่งลิงก์รีเซ็ตรหัสผ่านแล้ว'); } catch (error: unknown) { const message = typeof error === 'object' && error && 'message' in error ? String(error.message) : 'เกิดข้อผิดพลาด'; toast.error(`ส่งลิงก์ไม่สำเร็จ: ${message}`); } finally { setBusy(null); }
   };
 
   const deleteProfile = async (target: AppUser) => {

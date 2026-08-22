@@ -263,7 +263,7 @@ export default function Dashboard({ onQuickAdd, onNavigate }: DashboardProps) {
     });
 
     const activeProfit = activeIncome - activeExpense;
-    const activeProfitMargin = activeIncome > 0 ? ((activeProfit / activeIncome) * 100).toFixed(1) : '0';
+    const activeProfitMargin = activeIncome > 0 ? Number(((activeProfit / activeIncome) * 100).toFixed(1)) : 0;
     const avgOrderValue = activeSolarCount > 0 ? Math.round(activeSolarRevenue / activeSolarCount) : 0;
 
     const monthProfit = monthIncome - monthExpense;
@@ -745,7 +745,7 @@ export default function Dashboard({ onQuickAdd, onNavigate }: DashboardProps) {
         )}
         
         {/* Decorative Blobs - Only shown if not explicitly disabled by a highly minimal preset */}
-        {currentDesign.themePreset !== 'retro_terminal' && currentDesign.themePreset !== 'cyber_neon' && (
+        {currentDesign.themePreset !== 'cyber_neon' && (
           <>
             <div className="absolute -right-20 -top-20 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute -left-20 -bottom-20 w-48 h-48 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>

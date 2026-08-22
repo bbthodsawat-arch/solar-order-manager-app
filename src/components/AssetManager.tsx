@@ -579,7 +579,7 @@ export const AssetManager: React.FC<AssetManagerProps> = ({
             >
               <option value="all">⚡ ทุกสถานะการใช้งาน</option>
               <option value="active">🟢 ใช้งานปกติ (Active)</option>
-              <option value="in_repair">🟡 ส่งซ่อม/ปรับปรุง (In Repair)</option>
+              <option value="maintenance">🟡 ส่งซ่อม/ปรับปรุง (In Repair)</option>
               <option value="retired">🔴 ตัดจำหน่าย/หมดสภาพ (Retired)</option>
               <option value="lost">⚪ สูญหาย (Lost)</option>
             </select>
@@ -622,7 +622,7 @@ export const AssetManager: React.FC<AssetManagerProps> = ({
                   const metrics = calculateAssetMetrics(asset);
                   const statusColors = {
                     active: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
-                    in_repair: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+                    maintenance: 'bg-amber-50 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 border-amber-200 dark:border-amber-800',
                     retired: 'bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border-rose-200 dark:border-rose-800',
                     lost: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700',
                   };
@@ -720,7 +720,7 @@ export const AssetManager: React.FC<AssetManagerProps> = ({
                       {/* Status */}
                       <td className="py-3.5 px-3 text-center whitespace-nowrap">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${statusColors[asset.status || 'active']}`}>
-                          {asset.status === 'active' ? 'ใช้งานปกติ' : asset.status === 'in_repair' ? 'ส่งซ่อม' : asset.status === 'retired' ? 'ตัดจำหน่าย' : 'สูญหาย'}
+                          {asset.status === 'active' ? 'ใช้งานปกติ' : asset.status === 'maintenance' ? 'ส่งซ่อม' : asset.status === 'retired' ? 'ตัดจำหน่าย' : 'สูญหาย'}
                         </span>
                       </td>
 
@@ -896,7 +896,7 @@ export const AssetManager: React.FC<AssetManagerProps> = ({
                       className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
                     >
                       <option value="active">🟢 ใช้งานปกติ (Active)</option>
-                      <option value="in_repair">🟡 กำลังส่งซ่อม (In Repair)</option>
+                      <option value="maintenance">🟡 กำลังส่งซ่อม (In Repair)</option>
                       <option value="retired">🔴 ปลดระวาง/ตัดจำหน่าย (Retired)</option>
                       <option value="lost">⚪ สูญหาย (Lost)</option>
                     </select>

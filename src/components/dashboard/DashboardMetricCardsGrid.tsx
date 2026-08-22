@@ -1,16 +1,16 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { 
-  Wallet, TrendingUp, TrendingDown, Zap, Clock, Sun, Sparkles, SlidersHorizontal 
+import {
+  Wallet, TrendingUp, TrendingDown, Zap, Clock, Sun, Sparkles, SlidersHorizontal
 } from 'lucide-react';
-import { 
-  DashboardCardDesignConfig, 
-  DashboardCardId 
+import {
+  DashboardCardDesignConfig,
+  DashboardCardId
 } from '../../types';
-import { 
-  CARD_METRIC_META, 
-  DEFAULT_DASHBOARD_CARD_DESIGN, 
-  getComputedCardColor 
+import {
+  CARD_METRIC_META,
+  DEFAULT_DASHBOARD_CARD_DESIGN,
+  getComputedCardColor
 } from '../../utils/dashboardCardPresets';
 import Sparkline from '../Sparkline';
 
@@ -46,28 +46,28 @@ export const DashboardMetricCardsGrid: React.FC<DashboardMetricCardsGridProps> =
   onOpenCardCustomizer
 }) => {
   const current = designConfig || DEFAULT_DASHBOARD_CARD_DESIGN;
-  
-  const cardOrders = current.cardOrders && current.cardOrders.length === 6 
-    ? current.cardOrders 
+
+  const cardOrders = current.cardOrders && current.cardOrders.length === 6
+    ? current.cardOrders
     : DEFAULT_DASHBOARD_CARD_DESIGN.cardOrders;
 
   const cardVisibility = current.cardVisibility || DEFAULT_DASHBOARD_CARD_DESIGN.cardVisibility;
 
   // Resolve corner radius
-  const radiusClass = 
+  const radiusClass =
     current.borderRadius === 'rounded-xl' ? 'rounded-xl' :
     current.borderRadius === 'rounded-2xl' ? 'rounded-2xl' :
     current.borderRadius === 'rounded-full-pill' ? 'rounded-[2rem]' : 'rounded-3xl';
 
   // Resolve shadow
-  const shadowClass = 
+  const shadowClass =
     current.shadowStyle === 'glow' ? 'shadow-lg ring-1' :
     current.shadowStyle === 'floating' ? 'shadow-xl -translate-y-0.5' :
     current.shadowStyle === 'flat' ? 'shadow-none border-2' : 'shadow-sm';
 
   // Grid layout class based on layoutStyle
-  const gridClass = 
-    current.layoutStyle === 'two_column' 
+  const gridClass =
+    current.layoutStyle === 'two_column'
       ? 'grid-cols-1 sm:grid-cols-2'
       : current.layoutStyle === 'compact_dense'
       ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
@@ -192,7 +192,7 @@ export const DashboardMetricCardsGrid: React.FC<DashboardMetricCardsGridProps> =
                     {meta.label}
                   </span>
                   {current.showIconBadge && (
-                    <div 
+                    <div
                       style={{
                         backgroundColor: colors.iconBgColor || 'rgba(0,0,0,0.06)',
                         color: colors.iconColor || colors.textColor
@@ -212,11 +212,11 @@ export const DashboardMetricCardsGrid: React.FC<DashboardMetricCardsGridProps> =
               {/* Sparkline */}
               {current.showSparklines && (
                 <div className="my-2.5">
-                  <Sparkline 
-                    data={sparkData && sparkData.length > 0 ? sparkData : [0, 10, 20, 15, 30]} 
-                    color={colors.sparklineColor || colors.accentColor} 
-                    height={32} 
-                    label={meta.label} 
+                  <Sparkline
+                    data={sparkData && sparkData.length > 0 ? sparkData.map(value => ({ value })) : [{ value: 0 }, { value: 10 }, { value: 20 }, { value: 15 }, { value: 30 }]}
+                    color={colors.sparklineColor || colors.accentColor}
+                    height={32}
+                    label={meta.label}
                   />
                 </div>
               )}

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-type Tab = 'dashboard' | 'add' | 'history' | 'reports' | 'settings' | 'users';
+type Tab = 'dashboard' | 'pos' | 'history' | 'reports' | 'settings' | 'users';
 
 export function useKeyboardShortcuts(
   setActiveTab: (tab: Tab) => void,
@@ -9,7 +9,6 @@ export function useKeyboardShortcuts(
 ) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Don't trigger if the user is typing in an input, textarea, or contenteditable element
       const target = event.target as HTMLElement;
       if (
         target.tagName === 'INPUT' ||
@@ -25,7 +24,7 @@ export function useKeyboardShortcuts(
         case 'a':
           if (userPerms.canAddTransactions) {
             setQuickAddData(null);
-            setActiveTab('add');
+            setActiveTab('pos');
           }
           break;
         case 'd':

@@ -13,13 +13,14 @@ import { notifyReaction } from '../utils/feedback';
 
 interface ProductInventoryManagerProps {
   categories: ProductCategory[];
-  onUpdateCategories: (categories: ProductCategory[]) => void;
+  onUpdateCategories?: (categories: ProductCategory[]) => void;
   onAddCategory: (category: Omit<ProductCategory, 'id' | 'items'>) => Promise<void>;
   onUpdateCategory: (id: string, updates: Partial<ProductCategory>) => Promise<void>;
   onDeleteCategory: (id: string) => Promise<void>;
   onAddProduct: (categoryId: string, item: Omit<ProductCatalogItem, 'id'>) => Promise<void>;
   onUpdateProduct: (categoryId: string, itemId: string, updates: Partial<ProductCatalogItem>) => Promise<void>;
   onDeleteProduct: (categoryId: string, itemId: string) => Promise<void>;
+  onAdjustStock?: (categoryId: string, itemId: string, delta: number) => Promise<void>;
 }
 
 export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = ({
@@ -30,7 +31,8 @@ export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = (
   onDeleteCategory,
   onAddProduct,
   onUpdateProduct,
-  onDeleteProduct
+  onDeleteProduct,
+  onAdjustStock: _onAdjustStock
 }) => {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
