@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp, deleteApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword, signOut as firebaseSignOut, type User, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentSingleTabManager } from 'firebase/firestore';
 
 const productionFirebaseConfig = {
   apiKey: 'AIzaSyCug9CdKSMg3ki-wufXLv3oyThImjyc9fg',
@@ -22,10 +22,26 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || productionFirebaseConfig.measurementId,
 };
 
-// Every field has a production fallback, so initialization is deterministic.
 export const firebaseApp: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
-export const db = getFirestore(firebaseApp);
+
+// Persist Firestore's local cache so reads and pending writes survive reloads.
+// A normal memory-only Firestore instance silently loses that durability on a
+// page restart, which contradicted the application's offline-sync workflow.
+function createFirestore() {
+  try {
+    return initializeFirestore(firebaseApp, {
+      localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() }),
+    });
+  } catch (error) {
+    // The app can be initialized more than once in tests/HMR. Reuse the
+    // existing instance instead of failing startup.
+    console.warn('[Firebase] Persistent Firestore cache unavailable; reusing existing Firestore instance.', error);
+    return getFirestore(firebaseApp);
+  }
+}
+
+export const db = createFirestore();
 
 void setPersistence(auth, browserSessionPersistence).catch((error) => {
   console.warn('[Firebase auth persistence] session persistence unavailable:', error);
