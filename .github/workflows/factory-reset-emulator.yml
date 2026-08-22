@@ -1,0 +1,26 @@
+name: Factory Reset Emulator E2E
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  factory-reset-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Factory Reset E2E against isolated Firebase Emulator Suite
+        run: npx firebase-tools emulators:exec --only auth,firestore --project factory-reset-e2e "npm run test:factory-reset-emulator"
