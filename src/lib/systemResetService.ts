@@ -27,7 +27,6 @@ async function deleteCollectionInBatches(collectionName: FactoryResetCollection,
   return total;
 }
 
-/** Deletes business/store data while preserving identity, security and audit history. */
 export async function resetBusinessData(onProgress?: (progress: FactoryResetProgress) => void): Promise<Record<FactoryResetCollection, number>> {
   const counts = {} as Record<FactoryResetCollection, number>;
   for (const collectionName of FACTORY_RESET_COLLECTIONS) counts[collectionName] = await deleteCollectionInBatches(collectionName, onProgress);
@@ -54,7 +53,10 @@ export async function resetAppConfigToFactoryDefaults(userId: string): Promise<v
   } as unknown as AppConfig;
   const client = getFirebaseStore();
   const { error } = await client.from('app_config').upsert({ id: 'app', config: JSON.parse(JSON.stringify(factoryConfig)), updated_by: userId, updated_at: new Date().toISOString() }, { onConflict: 'id' });
-  if (error) throw new Error(`Factory reset could not persist app configuration: ${error.message || String(error)}`);
+  if (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Factory reset could not persist app configuration: ${message}`);
+  }
   const verify = await getDoc(doc(db, 'app_config', 'app'));
   if (!verify.exists() || !verify.data()?.config) throw new Error('Factory reset verification failed: app configuration was not persisted');
 }
