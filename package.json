@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit --project tsconfig.release.json",
     "test:workflow": "tsx scripts/business-workflow-check.ts",
     "test:document-numbering": "tsx scripts/document-numbering-check.ts",
-    "test:brand-workflow": "tsx scripts/brand-product-workflow-check.ts"
+    "test:brand-workflow": "tsx scripts/brand-product-workflow-check.ts",
+    "test:cloud-sync": "tsx scripts/cloud-sync-e2e-check.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -32,7 +33,7 @@
     "motion": "^12.23.24",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.1",
-    "react-dom": "^19.0.1",
+    "react-dom": "^19.0.0",
     "react-hot-toast": "^2.6.0",
     "recharts": "^3.10.1",
     "tailwindcss": "^4.1.14",
