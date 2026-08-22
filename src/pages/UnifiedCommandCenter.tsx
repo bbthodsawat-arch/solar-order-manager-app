@@ -1,5 +1,5 @@
 import { CommandCenterShell } from '../features/command-center/CommandCenterShell';
-import { BusinessMigrationWorkspace } from '../features/command-center/BusinessMigrationWorkspace';
+import { BUSINESS_MIGRATION_COMMANDS, BusinessMigrationWorkspace } from '../features/command-center/BusinessMigrationWorkspace';
 
 interface UnifiedCommandCenterProps {
   onNavigateToUsers?: () => void;
@@ -9,7 +9,7 @@ interface UnifiedCommandCenterProps {
 
 export default function UnifiedCommandCenter(props: UnifiedCommandCenterProps) {
   return (
-    <CommandCenterShell>
+    <CommandCenterShell additionalCommands={BUSINESS_MIGRATION_COMMANDS}>
       <BusinessMigrationWorkspace {...props} />
     </CommandCenterShell>
   );
