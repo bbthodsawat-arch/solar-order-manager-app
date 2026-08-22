@@ -10,9 +10,13 @@ assert.deepEqual(remaining, [{ id: 'offline_1', amount: 99 }, { id: 'offline_3',
 const dbManager = readFileSync('src/lib/dbManager.ts', 'utf8');
 const transactionsHook = readFileSync('src/hooks/useTransactions.ts', 'utf8');
 const cloudStatusHook = readFileSync('src/hooks/useCloudSyncStatus.ts', 'utf8');
+const firestoreRules = readFileSync('firestore.rules', 'utf8');
 assert.match(dbManager, /function mutateQueue\(/, 'all queue mutations must use a latest-state coordinator');
 assert.match(dbManager, /snapshotById/, 'flush reconciliation must compare exact committed snapshots');
 assert.match(dbManager, /start \+= 450/, 'large queues must be committed in batches below Firestore limits');
+assert.match(dbManager, /doc\(db, '__healthcheck', 'cloud-sync'\)/, 'cloud sync health check must use the permitted healthcheck path');
+assert.doesNotMatch(dbManager, /doc\(db, 'config', 'app'\)/, 'cloud sync must not probe a Firestore path denied by the deployed rules');
+assert.match(firestoreRules, /match \/__healthcheck\/\{documentId\} \{ allow read: if signedIn\(\);/, 'healthcheck read rule must allow authenticated sync clients');
 assert.match(transactionsHook, /dbManager\.enqueueOfflineTransaction/, 'offline create must use the shared queue coordinator');
 assert.match(transactionsHook, /dbManager\.updateOfflineQueueTransaction/, 'offline update must use the shared queue coordinator');
 assert.match(transactionsHook, /dbManager\.removeOfflineQueueTransaction/, 'offline delete must use the shared queue coordinator');
