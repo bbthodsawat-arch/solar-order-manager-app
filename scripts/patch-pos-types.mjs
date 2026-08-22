@@ -11,6 +11,14 @@ source = source.replace(
   "district: '',\n      province: ThaiProvinces[0]",
   "district: '',\n      subdistrict: '',\n      province: ThaiProvinces[0]"
 );
+source = source.replace(
+  "district: crmCust.district || '',\n      province:",
+  "district: crmCust.district || '',\n      subdistrict: crmCust.subdistrict || '',\n      province:"
+);
+source = source.replace(
+  "? getzip_code(customer.province, customer.district, subdistrict) : ''",
+  "? (getzip_code(customer.province, customer.district, subdistrict) || '') : ''"
+);
 
 fs.writeFileSync(path, source);
 console.log('POS type normalization patch applied');
