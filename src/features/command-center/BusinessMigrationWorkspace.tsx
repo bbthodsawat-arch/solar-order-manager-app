@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { CommandDefinition } from './registry';
 import BrandPaymentWorkspace from '../../components/BrandPaymentWorkspace';
-import BusinessDocumentsHub from '../../components/BusinessDocumentsHub';
+import { SecureBusinessDocumentsHub } from './SecureBusinessDocumentsHub';
 import { LegacyCommandAdapter } from './LegacyCommandAdapter';
 import { useAuth } from '../../hooks/useAuth';
 import { getUserPermissions } from '../../utils/permissions';
@@ -45,7 +45,7 @@ export function BusinessMigrationWorkspace({ activeCommand, onActiveCommandChang
       </div>
       {command && canRenderActive && (
         <LegacyCommandAdapter command={command}>
-          {active === 'business.documents' || active === 'business.profile' ? <BusinessDocumentsHub /> : <BrandPaymentWorkspace />}
+          {active === 'business.documents' || active === 'business.profile' ? <SecureBusinessDocumentsHub /> : <BrandPaymentWorkspace />}
         </LegacyCommandAdapter>
       )}
       {command && !canRenderActive && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm font-bold text-amber-800">คุณไม่มีสิทธิ์เข้าถึง workspace นี้</div>}
