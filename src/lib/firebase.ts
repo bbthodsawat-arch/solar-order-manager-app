@@ -32,10 +32,10 @@ void setPersistence(auth, browserSessionPersistence).catch((error) => {
 
 /**
  * Firestore rules intentionally require an active user profile for application
- * permissions. Older Firebase Auth users can exist without /users/{uid}, which
- * made a valid signed-in session appear healthy while every transaction write
- * was denied. Create the restricted default profile allowed by firestore.rules
- * exactly once for such users.
+ * permissions. Older Firebase Auth users can exist without /users/{uid}.
+ * Profile provisioning is deliberately best-effort and bounded so a Firestore
+ * outage or rules/network problem can never make a valid Firebase Auth login
+ * fail or hang indefinitely.
  */
 export async function ensureFirebaseUserProfile(user: User): Promise<void> {
   const userRef = doc(db, 'users', user.uid);
@@ -71,13 +71,26 @@ export async function ensureFirebaseUserProfile(user: User): Promise<void> {
   });
 }
 
-// Register before feature modules subscribe to Auth. This closes the gap where
-// Auth was ready but the Firestore permission profile did not yet exist.
+const PROFILE_PROVISION_TIMEOUT_MS = 8000;
+
+async function provisionProfileInBackground(user: User): Promise<void> {
+  try {
+    await Promise.race([
+      ensureFirebaseUserProfile(user),
+      new Promise<never>((_, reject) => {
+        window.setTimeout(() => reject(new Error('Firebase user profile provisioning timed out')), PROFILE_PROVISION_TIMEOUT_MS);
+      }),
+    ]);
+  } catch (error) {
+    console.warn('[Firebase user profile] deferred provisioning failed; authentication remains valid:', error);
+  }
+}
+
+// Register before feature modules subscribe to Auth. Profile provisioning is
+// intentionally non-blocking so Auth remains the source of truth for login.
 onAuthStateChanged(auth, (user) => {
   if (!user) return;
-  void ensureFirebaseUserProfile(user).catch((error) => {
-    console.error('[Firebase user profile] unable to prepare Firestore access:', error);
-  });
+  void provisionProfileInBackground(user);
 });
 
 export function isFirebaseConfigured(): boolean { return true; }
@@ -88,7 +101,7 @@ export async function signInWithGoogle() {
   try {
     await setPersistence(auth, browserSessionPersistence);
     const result = await signInWithPopup(auth, provider);
-    await ensureFirebaseUserProfile(result.user);
+    void provisionProfileInBackground(result.user);
     return { user: result.user, error: null };
   } catch (error: unknown) {
     return { user: null, error };
@@ -99,7 +112,7 @@ export async function signInWithPassword(email: string, pass: string) {
   try {
     await setPersistence(auth, browserSessionPersistence);
     const result = await signInWithEmailAndPassword(auth, email, pass);
-    await ensureFirebaseUserProfile(result.user);
+    void provisionProfileInBackground(result.user);
     return { user: result.user, error: null };
   } catch (error: unknown) {
     return { user: null, error };
