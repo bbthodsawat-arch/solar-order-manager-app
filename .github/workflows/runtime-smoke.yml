@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Business workflow checks
         run: npm run test:workflow
       - name: Document numbering regression checks
@@ -33,9 +33,7 @@ jobs:
           PORT=3100 NODE_ENV=production npm start > /tmp/som-server.log 2>&1 &
           echo $! > /tmp/som-server.pid
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:3100/api/health; then
-              break
-            fi
+            if curl -fsS http://127.0.0.1:3100/api/health; then break; fi
             sleep 1
           done
           curl -fsS http://127.0.0.1:3100/ > /tmp/som-index.html
@@ -47,9 +45,7 @@ jobs:
           PORT=99999 NODE_ENV=production npm start > /tmp/som-invalid-port.log 2>&1 &
           echo $! > /tmp/som-server.pid
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:3000/api/health; then
-              break
-            fi
+            if curl -fsS http://127.0.0.1:3000/api/health; then break; fi
             sleep 1
           done
           curl -fsS http://127.0.0.1:3000/api/health
