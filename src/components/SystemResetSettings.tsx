@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from '../hooks/useAuth';
 import { getUserPermissions } from '../utils/permissions';
 import { logAuditEvent } from '../lib/auditLogger';
-import { clearLocalApplicationState, deleteLegacyConfigDocument, resetAppConfigToFactoryDefaults, resetBusinessData, type FactoryResetProgress } from '../lib/systemResetService';
+import { assertFactoryResetAuthorized, clearLocalApplicationState, deleteLegacyConfigDocument, resetAppConfigToFactoryDefaults, resetBusinessData, type FactoryResetProgress } from '../lib/systemResetService';
 
 const REQUIRED_CONFIRMATION = 'RESET';
 
@@ -17,7 +17,7 @@ export const SystemResetSettings: React.FC = () => {
   const [completedCollections, setCompletedCollections] = useState<string[]>([]);
 
   const permissions = useMemo(() => getUserPermissions(appUser), [appUser]);
-  const isAdminOrOwner = appUser?.role === 'admin' || appUser?.role === 'owner' || user?.email?.toLowerCase() === 'b.b.thodsawat@gmail.com';
+  const isAdminOrOwner = appUser?.role === 'admin' || appUser?.role === 'owner';
   const canFactoryReset = Boolean(user && isAdminOrOwner && permissions.canManageDatabase && permissions.canManageSettings);
 
   const cancel = () => {
@@ -44,6 +44,7 @@ export const SystemResetSettings: React.FC = () => {
     await logAuditEvent({ action: 'factory_reset_started', category: 'system', targetName: 'Factory Reset', details: 'เริ่มต้น Factory Reset โดยผู้ดูแลระบบ', user: appUser });
 
     try {
+      await assertFactoryResetAuthorized();
       const counts = await resetBusinessData((next) => {
         setProgress(next);
         if (next.phase === 'complete') {
