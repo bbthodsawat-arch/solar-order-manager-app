@@ -37,14 +37,17 @@ export const SystemResetSettings: React.FC = () => {
       toast.error('กรุณาพิมพ์คำว่า RESET เพื่อยืนยัน');
       return;
     }
+    if (isResetting) return;
 
     setIsResetting(true);
     setCompletedCollections([]);
     setProgress(null);
-    await logAuditEvent({ action: 'factory_reset_started', category: 'system', targetName: 'Factory Reset', details: 'เริ่มต้น Factory Reset โดยผู้ดูแลระบบ', user: appUser });
 
     try {
+      // Revalidate before creating the audit trail and before any destructive write.
       await assertFactoryResetAuthorized();
+      await logAuditEvent({ action: 'factory_reset_started', category: 'system', targetName: 'Factory Reset', details: 'เริ่มต้น Factory Reset โดยผู้ดูแลระบบ', user: appUser });
+
       const counts = await resetBusinessData((next) => {
         setProgress(next);
         if (next.phase === 'complete') {
@@ -65,7 +68,11 @@ export const SystemResetSettings: React.FC = () => {
       window.setTimeout(() => window.location.reload(), 800);
     } catch (error) {
       console.error('Factory reset failed:', error);
-      await logAuditEvent({ action: 'factory_reset_failed', category: 'system', targetName: 'Factory Reset', details: `Factory Reset ล้มเหลว: ${error instanceof Error ? error.message : String(error)}`, user: appUser });
+      try {
+        await logAuditEvent({ action: 'factory_reset_failed', category: 'system', targetName: 'Factory Reset', details: `Factory Reset ล้มเหลว: ${error instanceof Error ? error.message : String(error)}`, user: appUser });
+      } catch (auditError) {
+        console.error('Factory reset failure audit could not be recorded:', auditError);
+      }
       toast.error('Factory Reset ไม่สมบูรณ์ ระบบหยุดเพื่อป้องกันการแจ้งว่าสำเร็จทั้งที่ข้อมูลยังเหลืออยู่');
     } finally {
       setIsResetting(false);
