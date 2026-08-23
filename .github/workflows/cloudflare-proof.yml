@@ -2,7 +2,7 @@ name: Cloudflare Proof of Deployment
 
 on:
   push:
-    branches: [main]
+    branches: [cloudflare-proof]
   workflow_dispatch:
 
 permissions:
@@ -29,7 +29,25 @@ jobs:
         run: npm run build
 
       - name: Verify Wrangler configuration
-        run: npx wrangler@latest deploy --dry-run
+        run: npx wrangler@4.116.0 deploy --dry-run
 
       - name: Temporary Cloudflare proof deployment
-        run: npx wrangler@latest deploy --temporary
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler@4.116.0 deploy --temporary 2>&1 | tee cloudflare-deploy.log
+
+          PREVIEW_URL="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' cloudflare-deploy.log | tail -n 1 || true)"
+          if [[ -z "$PREVIEW_URL" ]]; then
+            echo "Could not extract the temporary Cloudflare workers.dev URL"
+            exit 1
+          fi
+
+          echo "Cloudflare preview: $PREVIEW_URL"
+          echo "CLOUDFLARE_PREVIEW_URL=$PREVIEW_URL" >> "$GITHUB_ENV"
+
+      - name: Verify Cloudflare health endpoint
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --silent --retry 5 --retry-delay 2 \
+            "$CLOUDFLARE_PREVIEW_URL/api/health"
