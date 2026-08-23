@@ -5,8 +5,9 @@ import { getFirestore, initializeFirestore, persistentLocalCache, persistentSing
 const productionFirebaseConfig = {
   apiKey: 'AIzaSyCug9CdKSMg3ki-wufXLv3oyThImjyc9fg', authDomain: 'gen-lang-client-0307844434.firebaseapp.com', projectId: 'gen-lang-client-0307844434', storageBucket: 'gen-lang-client-0307844434.firebasestorage.app', messagingSenderId: '774155423443', appId: '1:774155423443:web:7359c69b2e16b7ebe14e26', measurementId: 'G-58Y2CSCG48',
 };
+const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || productionFirebaseConfig.apiKey, authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || productionFirebaseConfig.authDomain, projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || productionFirebaseConfig.projectId, storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || productionFirebaseConfig.storageBucket, messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || productionFirebaseConfig.messagingSenderId, appId: import.meta.env.VITE_FIREBASE_APP_ID || productionFirebaseConfig.appId, measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || productionFirebaseConfig.measurementId,
+  apiKey: viteEnv.VITE_FIREBASE_API_KEY || productionFirebaseConfig.apiKey, authDomain: viteEnv.VITE_FIREBASE_AUTH_DOMAIN || productionFirebaseConfig.authDomain, projectId: viteEnv.VITE_FIREBASE_PROJECT_ID || productionFirebaseConfig.projectId, storageBucket: viteEnv.VITE_FIREBASE_STORAGE_BUCKET || productionFirebaseConfig.storageBucket, messagingSenderId: viteEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || productionFirebaseConfig.messagingSenderId, appId: viteEnv.VITE_FIREBASE_APP_ID || productionFirebaseConfig.appId, measurementId: viteEnv.VITE_FIREBASE_MEASUREMENT_ID || productionFirebaseConfig.measurementId,
 };
 export const firebaseApp: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
@@ -22,7 +23,7 @@ export async function ensureFirebaseUserProfile(user: User): Promise<void> {
 }
 const PROFILE_PROVISION_TIMEOUT_MS = 8000;
 async function provisionProfileInBackground(user: User): Promise<void> {
-  try { await Promise.race([ensureFirebaseUserProfile(user), new Promise<never>((_, reject) => { window.setTimeout(() => reject(new Error('Firebase user profile provisioning timed out')), PROFILE_PROVISION_TIMEOUT_MS); })]); }
+  try { await Promise.race([ensureFirebaseUserProfile(user), new Promise<never>((_, reject) => { globalThis.setTimeout(() => reject(new Error('Firebase user profile provisioning timed out')), PROFILE_PROVISION_TIMEOUT_MS); })]); }
   catch (error) { console.warn('[Firebase user profile] deferred provisioning failed; authentication remains valid:', error); }
 }
 onAuthStateChanged(auth, (user) => { if (user) void provisionProfileInBackground(user); });
