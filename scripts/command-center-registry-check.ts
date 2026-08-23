@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { COMMAND_DOMAINS } from '../src/features/command-center/domains';
 import { COMMAND_REGISTRY } from '../src/features/command-center/registry';
 import { canAccessCommand } from '../src/features/command-center/permissions';
@@ -15,8 +15,13 @@ assert.ok(COMMAND_REGISTRY.every(command => command.workspaceStatus), 'every com
 assert.equal(COMMAND_REGISTRY.filter(command => command.workspaceStatus === 'native').length, 5, 'business and catalog workspaces must be native');
 assert.equal(COMMAND_REGISTRY.filter(command => command.workspaceStatus === 'planned').length, 1, 'only system maintenance is planned');
 assert.deepEqual(CATALOG_NATIVE_COMMANDS.map(command => command.id).sort(), ['catalog.inventory', 'catalog.products']);
+assert.ok(existsSync('src/features/command-center/CatalogCommandWorkspace.tsx'), 'catalog workspace host must exist');
+assert.ok(existsSync('src/components/ProductCatalogManager.tsx'), 'product catalog manager must remain the data UI');
+assert.ok(existsSync('src/components/ProductInventoryManager.tsx'), 'product inventory manager must remain the data UI');
 assert.equal(existsSync('src/pages/CommandCenter.tsx'), false, 'superseded legacy CommandCenter must remain removed');
 assert.equal(existsSync('src/pages/SettingsWorkspace.tsx'), false, 'superseded legacy SettingsWorkspace must remain removed');
+const unified = readFileSync('src/pages/UnifiedCommandCenter.tsx', 'utf8');
+for (const token of ['useAppConfig', 'ProductCatalogManager', 'ProductInventoryManager', 'CatalogCommandWorkspace', 'updateStandardSets', 'updateProductCategories']) assert.ok(unified.includes(token), `UnifiedCommandCenter must wire ${token}`);
 
 const staff: AppUser = { uid:'staff', email:null, displayName:'Staff', photoURL:null, role:'staff', status:'active', createdAt:'' };
 const admin: AppUser = { ...staff, uid:'admin', role:'admin' };
