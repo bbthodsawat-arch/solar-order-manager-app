@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
-import type { CommandDefinition } from './registry';
+import { getCommand, type CommandDefinition } from './registry';
 import { LegacyCommandAdapter } from './LegacyCommandAdapter';
 
 export type CatalogCommand = 'catalog.products' | 'catalog.inventory';
 
+/** The native catalog surface is sourced from the single command registry to prevent metadata drift. */
 export const CATALOG_NATIVE_COMMANDS: CommandDefinition[] = [
-  { id: 'catalog.products', domain: 'catalog', title: 'ชุดสินค้าและราคา', description: 'ชุดมาตรฐาน ราคา และสินค้า', keywords: ['product', 'catalog', 'price', 'สินค้า', 'ราคา'], permission: 'canManageInventory', quickAction: true },
-  { id: 'catalog.inventory', domain: 'catalog', title: 'สินค้าและสต็อก', description: 'สินค้า คลัง และจำนวนคงเหลือ', keywords: ['inventory', 'stock', 'สต็อก', 'คลัง'], permission: 'canManageInventory', quickAction: true },
-];
+  getCommand('catalog.products'),
+  getCommand('catalog.inventory'),
+].filter(Boolean) as CommandDefinition[];
 
 interface Props {
   activeCommand: CatalogCommand;
@@ -16,9 +17,10 @@ interface Props {
   inventoryWorkspace: ReactNode;
 }
 
-/** Native control-plane host for catalog workspaces. Data ownership remains in the existing managers. */
 export function CatalogCommandWorkspace({ activeCommand, onActiveCommandChange, productsWorkspace, inventoryWorkspace }: Props) {
-  const command = CATALOG_NATIVE_COMMANDS.find(item => item.id === activeCommand)!;
+  const command = getCommand(activeCommand);
+  if (!command) return null;
+
   return (
     <div className="space-y-4" data-catalog-workspace={activeCommand}>
       <div className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
