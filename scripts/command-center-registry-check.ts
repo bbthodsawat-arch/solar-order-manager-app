@@ -27,9 +27,14 @@ const staff: AppUser = { uid:'staff', email:null, displayName:'Staff', photoURL:
 const admin: AppUser = { ...staff, uid:'admin', role:'admin' };
 const staffPermissions = getUserPermissions(staff);
 const adminPermissions = getUserPermissions(admin);
-for (const id of ['business.profile', 'business.brand', 'business.documents', 'catalog.products', 'catalog.inventory', 'system.maintenance']) {
+for (const id of ['business.profile', 'business.brand', 'business.documents', 'system.maintenance']) {
   const command = COMMAND_REGISTRY.find(item => item.id === id)!;
   assert.equal(canAccessCommand(staff, staffPermissions, command.permission), false, `staff must not access ${id}`);
+  assert.equal(canAccessCommand(admin, adminPermissions, command.permission), true, `admin should access ${id}`);
+}
+for (const id of ['catalog.products', 'catalog.inventory']) {
+  const command = COMMAND_REGISTRY.find(item => item.id === id)!;
+  assert.equal(canAccessCommand(staff, staffPermissions, command.permission), true, `staff should access ${id}`);
   assert.equal(canAccessCommand(admin, adminPermissions, command.permission), true, `admin should access ${id}`);
 }
 console.log(`Command Center registry and permission checks passed (${COMMAND_REGISTRY.length} commands; native=${COMMAND_REGISTRY.filter(c => c.workspaceStatus === 'native').length}, legacy=${COMMAND_REGISTRY.filter(c => c.workspaceStatus === 'legacy').length}, planned=${COMMAND_REGISTRY.filter(c => c.workspaceStatus === 'planned').length})`);
