@@ -27,6 +27,13 @@ UI permission checks are UX guards only. Destructive system operations retain th
 - TypeScript and Command Center regression are part of the quality workflow.
 - Registry health is deduplicated after extensions are merged into the Command Center shell.
 - No claim of Production rollout is made until Vercel reports a READY deployment for the current `main` commit.
+- The release gate must verify the deployed commit SHA matches `main` before production is considered complete.
+
+## Release Gate
+1. GitHub Actions must run `typecheck`, Command Center regression, and production build for the current `main` commit.
+2. Vercel must create a Production deployment from that same commit and report `READY`.
+3. Production smoke verification must confirm the Command Center route loads and the native workspace boundary remains intact.
+4. A deployment built from an older commit must never be treated as the release candidate.
 
 ## Next
 1. Add browser-level smoke coverage for command search, permission filtering, and workspace activation.
