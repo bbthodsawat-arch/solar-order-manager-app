@@ -5,6 +5,7 @@ on:
     branches: [main, chore/remove-supabase-dependencies]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   build:
