@@ -16,6 +16,14 @@ export interface CommandDefinition {
   workspaceStatus?: CommandWorkspaceStatus;
 }
 
+export interface RegistryHealth {
+  status: 'healthy' | 'degraded';
+  totalCommands: number;
+  duplicateIds: string[];
+  invalidDomains: string[];
+  missingWorkspaceStatus: string[];
+}
+
 export const COMMAND_REGISTRY: CommandDefinition[] = [
   { id:'business.profile', domain:'business', title:'ข้อมูลธุรกิจ', description:'ข้อมูลกิจการ ที่อยู่ และค่าพื้นฐานของธุรกิจ', keywords:['business','company','profile','บริษัท','ธุรกิจ'], permission:'canManageSettings', legacySection:'business', quickAction:true, workspaceStatus:'native' },
   { id:'business.brand', domain:'business', title:'แบรนด์และการชำระเงิน', description:'โลโก้ บัญชีรับเงิน ลายเซ็น และข้อมูลแบรนด์', keywords:['brand','branding','payment','bank','logo','ชำระเงิน','แบรนด์'], permission:'canManageSettings', legacySection:'branding', quickAction:true, workspaceStatus:'native' },
@@ -33,3 +41,19 @@ export const COMMAND_REGISTRY: CommandDefinition[] = [
 ];
 
 export function getCommand(id: string) { return COMMAND_REGISTRY.find(command => command.id === id); }
+
+export function getRegistryHealth(commands: readonly CommandDefinition[] = COMMAND_REGISTRY): RegistryHealth {
+  const knownDomains = new Set<CommandDomainId>(['business', 'catalog', 'experience', 'automation', 'security', 'system']);
+  const counts = new Map<string, number>();
+  for (const command of commands) counts.set(command.id, (counts.get(command.id) ?? 0) + 1);
+  const duplicateIds = [...counts.entries()].filter(([, count]) => count > 1).map(([id]) => id).sort();
+  const invalidDomains = [...new Set(commands.filter(command => !knownDomains.has(command.domain)).map(command => command.id))].sort();
+  const missingWorkspaceStatus = commands.filter(command => !command.workspaceStatus).map(command => command.id).sort();
+  return {
+    status: duplicateIds.length || invalidDomains.length || missingWorkspaceStatus.length ? 'degraded' : 'healthy',
+    totalCommands: commands.length,
+    duplicateIds,
+    invalidDomains,
+    missingWorkspaceStatus,
+  };
+}
