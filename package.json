@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "npm install --no-save --ignore-scripts --no-audit --no-fund react-hot-toast@2.6.0 && node scripts/patch-pos-build.mjs && node scripts/patch-pos-types.mjs && node scripts/patch-brand-ui.mjs && npm run typecheck && rm -rf dist node_modules/.vite && vite build",
+    "build": "npm install --no-save --ignore-scripts --no-audit --no-fund react-hot-toast@2.6.0 && node scripts/patch-pos-build.mjs && node scripts/patch-pos-types.mjs && node scripts/patch-brand-ui.mjs && npm run typecheck && npm run test:command-center && rm -rf dist node_modules/.vite && vite build",
     "start": "node server.js",
     "preview": "vite preview",
     "clean": "rm -rf dist node_modules/.vite",
