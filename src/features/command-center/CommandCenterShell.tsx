@@ -30,10 +30,7 @@ export function CommandCenterShell({ children, onSelectCommand, additionalComman
     return available.filter(command => `${command.title} ${command.description} ${command.keywords.join(' ')}`.toLowerCase().includes(q));
   }, [available, query]);
   const visibleDomains = COMMAND_DOMAINS.map(domain => ({ ...domain, commands: visible.filter(command => command.domain === domain.id) })).filter(domain => domain.commands.length);
-  const selectedCommand = useMemo(() => {
-    const selected = selectedCommandId ? available.find(command => command.id === selectedCommandId) : null;
-    return selected ?? available[0] ?? null;
-  }, [available, selectedCommandId]);
+  const selectedCommand = useMemo(() => selectedCommandId ? available.find(command => command.id === selectedCommandId) ?? null : null, [available, selectedCommandId]);
 
   const selectCommand = (command: CommandDefinition) => {
     setSelectedCommandId(command.id);
