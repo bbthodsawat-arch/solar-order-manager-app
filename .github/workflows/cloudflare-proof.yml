@@ -8,6 +8,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: cloudflare-proof-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WRANGLER_VERSION: 4.116.0
+
 jobs:
   cloudflare-proof:
     runs-on: ubuntu-latest
@@ -28,14 +35,17 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Verify Wrangler configuration
-        run: npx wrangler@4.116.0 deploy --dry-run
+      - name: Validate Wrangler configuration
+        run: npx wrangler@${WRANGLER_VERSION} check
+
+      - name: Verify Wrangler deployment bundle
+        run: npx wrangler@${WRANGLER_VERSION} deploy --dry-run --outdir .wrangler/deploy-output
 
       - name: Temporary Cloudflare proof deployment
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler@4.116.0 deploy --temporary 2>&1 | tee cloudflare-deploy.log
+          npx wrangler@${WRANGLER_VERSION} deploy --temporary 2>&1 | tee cloudflare-deploy.log
 
           PREVIEW_URL="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' cloudflare-deploy.log | tail -n 1 || true)"
           if [[ -z "$PREVIEW_URL" ]]; then
