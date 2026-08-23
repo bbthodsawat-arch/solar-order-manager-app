@@ -1,0 +1,1 @@
+Temporary diagnostic marker for Claude workflow validation. Remove after validation.
