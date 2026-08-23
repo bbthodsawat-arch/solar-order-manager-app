@@ -1,0 +1,35 @@
+name: Cloudflare Proof of Deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cloudflare-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Verify Wrangler configuration
+        run: npx wrangler@latest deploy --dry-run
+
+      - name: Temporary Cloudflare proof deployment
+        run: npx wrangler@latest deploy --temporary
