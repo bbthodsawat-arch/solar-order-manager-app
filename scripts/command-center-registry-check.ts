@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { COMMAND_DOMAINS } from '../src/features/command-center/domains';
 import { COMMAND_REGISTRY } from '../src/features/command-center/registry';
 import { canAccessCommand } from '../src/features/command-center/permissions';
+import { summarizeRegistryHealth } from '../src/features/command-center/registry-health';
 import { CATALOG_NATIVE_COMMANDS } from '../src/features/command-center/CatalogCommandWorkspace';
 import type { AppUser } from '../src/utils/permissions';
 import { getUserPermissions } from '../src/utils/permissions';
@@ -22,6 +23,17 @@ assert.equal(existsSync('src/pages/CommandCenter.tsx'), false, 'superseded legac
 assert.equal(existsSync('src/pages/SettingsWorkspace.tsx'), false, 'superseded legacy SettingsWorkspace must remain removed');
 const unified = readFileSync('src/pages/UnifiedCommandCenter.tsx', 'utf8');
 for (const token of ['useAppConfig', 'ProductCatalogManager', 'ProductInventoryManager', 'CatalogCommandWorkspace', 'updateStandardSets', 'updateProductCategories']) assert.ok(unified.includes(token), `UnifiedCommandCenter must wire ${token}`);
+
+const healthy = summarizeRegistryHealth(COMMAND_REGISTRY);
+assert.equal(healthy.status, 'healthy', 'production registry must be healthy');
+assert.equal(healthy.commandCount, COMMAND_REGISTRY.length);
+assert.equal(healthy.duplicateIds.length, 0);
+assert.equal(healthy.invalidDomains.length, 0);
+assert.equal(healthy.quickActionCount, COMMAND_REGISTRY.filter(command => command.quickAction).length);
+
+const degraded = summarizeRegistryHealth([...COMMAND_REGISTRY, { ...COMMAND_REGISTRY[0], id: COMMAND_REGISTRY[0].id }]);
+assert.equal(degraded.status, 'degraded', 'duplicate command IDs must degrade registry health');
+assert.deepEqual(degraded.duplicateIds, [COMMAND_REGISTRY[0].id]);
 
 const staff: AppUser = { uid:'staff', email:null, displayName:'Staff', photoURL:null, role:'staff', status:'active', createdAt:'' };
 const admin: AppUser = { ...staff, uid:'admin', role:'admin' };
