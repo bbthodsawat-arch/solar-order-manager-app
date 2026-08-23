@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { COMMAND_DOMAINS } from '../src/features/command-center/domains';
-import { COMMAND_REGISTRY } from '../src/features/command-center/registry';
+import { COMMAND_REGISTRY, getRegistryHealth } from '../src/features/command-center/registry';
 import { canAccessCommand } from '../src/features/command-center/permissions';
 import { CATALOG_NATIVE_COMMANDS } from '../src/features/command-center/CatalogCommandWorkspace';
 import type { AppUser } from '../src/utils/permissions';
@@ -22,6 +22,29 @@ assert.equal(existsSync('src/pages/CommandCenter.tsx'), false, 'superseded legac
 assert.equal(existsSync('src/pages/SettingsWorkspace.tsx'), false, 'superseded legacy SettingsWorkspace must remain removed');
 const unified = readFileSync('src/pages/UnifiedCommandCenter.tsx', 'utf8');
 for (const token of ['useAppConfig', 'ProductCatalogManager', 'ProductInventoryManager', 'CatalogCommandWorkspace', 'updateStandardSets', 'updateProductCategories']) assert.ok(unified.includes(token), `UnifiedCommandCenter must wire ${token}`);
+const shell = readFileSync('src/features/command-center/CommandCenterShell.tsx', 'utf8');
+assert.ok(shell.includes('getRegistryHealth'), 'shell must surface deterministic registry health');
+assert.ok(shell.includes('ไม่มีคำสั่งที่ได้รับอนุญาต'), 'shell must render a recoverable permission-empty state');
+const overview = readFileSync('src/features/command-center/CommandCenterOverview.tsx', 'utf8');
+assert.ok(overview.includes('data-registry-health'), 'overview must expose registry health state');
+
+const healthy = getRegistryHealth(COMMAND_REGISTRY);
+assert.equal(healthy.status, 'healthy', 'production registry fixture must be healthy');
+assert.deepEqual(healthy.duplicateIds, []);
+assert.deepEqual(healthy.invalidDomains, []);
+assert.deepEqual(healthy.missingWorkspaceStatus, []);
+const degradedFixture = [
+  ...COMMAND_REGISTRY,
+  { ...COMMAND_REGISTRY[0], id: 'business.profile.duplicate' },
+  { ...COMMAND_REGISTRY[1], id: 'business.brand.duplicate', domain: 'invalid' as never },
+  { ...COMMAND_REGISTRY[2], id: 'business.documents.missing-status', workspaceStatus: undefined },
+];
+const degraded = getRegistryHealth(degradedFixture);
+assert.equal(degraded.status, 'degraded', 'degraded fixture must be detected');
+assert.ok(degraded.invalidDomains.includes('business.brand.duplicate'));
+assert.ok(degraded.missingWorkspaceStatus.includes('business.documents.missing-status'));
+const duplicateFixture = [...COMMAND_REGISTRY, COMMAND_REGISTRY[0]];
+assert.equal(getRegistryHealth(duplicateFixture).duplicateIds.includes('business.profile'), true, 'duplicate command IDs must be detected');
 
 const staff: AppUser = { uid:'staff', email:null, displayName:'Staff', photoURL:null, role:'staff', status:'active', createdAt:'' };
 const admin: AppUser = { ...staff, uid:'admin', role:'admin' };
@@ -37,4 +60,4 @@ for (const id of ['catalog.products', 'catalog.inventory']) {
   assert.equal(canAccessCommand(staff, staffPermissions, command.permission), true, `staff should access ${id}`);
   assert.equal(canAccessCommand(admin, adminPermissions, command.permission), true, `admin should access ${id}`);
 }
-console.log(`Command Center registry and permission checks passed (${COMMAND_REGISTRY.length} commands; native=${COMMAND_REGISTRY.filter(c => c.workspaceStatus === 'native').length}, legacy=${COMMAND_REGISTRY.filter(c => c.workspaceStatus === 'legacy').length}, planned=${COMMAND_REGISTRY.filter(c => c.workspaceStatus === 'planned').length})`);
+console.log(`Command Center registry, health, and permission checks passed (${COMMAND_REGISTRY.length} commands; health=${healthy.status}; native=${COMMAND_REGISTRY.filter(c => c.workspaceStatus === 'native').length}, legacy=${COMMAND_REGISTRY.filter(c => c.workspaceStatus === 'legacy').length}, planned=${COMMAND_REGISTRY.filter(c => c.workspaceStatus === 'planned').length})`);
