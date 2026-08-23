@@ -24,6 +24,7 @@ import SpeechDictationButton from '../components/SpeechDictationButton';
 import { BarcodeScannerModal } from '../components/BarcodeScannerModal';
 import { notifyReaction, soundFeedback } from '../utils/feedback';
 import { suggestCategory } from '../utils/categorySuggestions';
+import { loadData, getProvinces, getDistricts, getSubDistricts, getzip_code } from 'thai-address-select';
 
 interface AddTransactionProps {
   onSuccess: () => void;
@@ -75,6 +76,7 @@ export default function AddTransaction({
   
   // View & Filter States
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [activeBrand, setActiveBrand] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [inspectingSet, setInspectingSet] = useState<any | null>(null);
@@ -122,7 +124,7 @@ export default function AddTransaction({
 
   // Customer Details
   const [customer, setCustomer] = useState<{
-  id?: string; name: string; address: string; district: string; province: string; zipcode: string; phone: string; customerTaxId?: string; customerBranch?: string; customerEmail?: string;
+  id?: string; name: string; address: string; district: string; subdistrict: string; province: string; zipcode: string; phone: string; customerTaxId: string; customerBranch: string; customerEmail: string;
 }>(() => {
     try {
       const saved = localStorage.getItem('klangna_pos_customer');
@@ -133,7 +135,8 @@ export default function AddTransaction({
       name: '',
       address: '',
       district: '',
-      province: ThaiProvinces[0],
+      province: 'กรุงเทพมหานคร',
+      subdistrict: '',
       zipcode: '',
       phone: '',
       customerTaxId: '',
@@ -141,6 +144,17 @@ export default function AddTransaction({
       customerEmail: '',
     };
   });
+
+  const [thaiAddressReady, setThaiAddressReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    loadData().then(() => { if (active) setThaiAddressReady(true); }).catch((error) => {
+      console.error('Thai address data failed to load:', error);
+      notifyReaction('error', 'ไม่สามารถโหลดฐานข้อมูลที่อยู่ไทยได้');
+    });
+    return () => { active = false; };
+  }, []);
 
   // Delivery / Shipping
   const [shipping, setShipping] = useState<{
@@ -234,7 +248,7 @@ export default function AddTransaction({
   // Recent Customers for Auto-fill
   const recentCustomers = useMemo(() => {
     const customersMap = new Map<string, { name: string; phone?: string; address?: string; province?: string; zipcode?: string }>();
-    transactions.forEach(t => {
+    transactions.slice(0, 500).forEach(t => {
       if (t.saleOrderDetails?.customerName) {
         const name = t.saleOrderDetails.customerName.trim();
         if (name && !customersMap.has(name)) {
@@ -257,9 +271,7 @@ export default function AddTransaction({
     const detailsMap = new Map<string, { price?: number; subcategory?: string }>();
     
     // Filter and sort to get most recent income transactions first
-    const sortedIncomes = [...transactions]
-      .filter(t => t.type === 'income')
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sortedIncomes = transactions.filter(t => t.type === 'income').slice(0, 500);
       
     for (const tx of sortedIncomes) {
       // 1. Check subcategory (this is the name of standard set or custom item)
@@ -337,6 +349,7 @@ export default function AddTransaction({
   const incomeCategories = config.incomeCategories.filter(c => c.isActive);
   const expenseCategories = config.expenseCategories.filter(c => c.isActive);
   const standardSets = config.standardSets || [];
+  const activeBrands = (config.brands || []).filter((brand: any) => brand.isActive);
 
   const filteredSets = useMemo(() => {
     let result = standardSets;
@@ -348,6 +361,7 @@ export default function AddTransaction({
         );
       });
     }
+    if (activeBrand !== 'all') result = result.filter((set: any) => set.brandId === activeBrand);
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(s => 
@@ -356,7 +370,7 @@ export default function AddTransaction({
       );
     }
     return result;
-  }, [standardSets, activeCategory, searchQuery, incomeCategories]);
+  }, [standardSets, activeCategory, activeBrand, searchQuery, incomeCategories]);
 
   // Cart Helper Actions
   const addToCart = (set: any) => {
@@ -435,7 +449,7 @@ export default function AddTransaction({
       setCart([]);
       setDiscountAmount(0);
       setShippingFee(0);
-      setCustomer({ name: '', address: '', district: '', province: ThaiProvinces[0], zipcode: '', phone: '', customerTaxId: '', customerBranch: 'สำนักงานใหญ่', customerEmail: '' });
+      setCustomer({ name: '', address: '', district: '', subdistrict: '', province: 'กรุงเทพมหานคร', zipcode: '', phone: '', customerTaxId: '', customerBranch: 'สำนักงานใหญ่', customerEmail: '' });
       setPayment({
         method: paymentMethods[0] || 'เงินสด',
         status: 'paid',
@@ -514,6 +528,7 @@ export default function AddTransaction({
       phone: crmCust.phoneNumber || '',
       address: crmCust.customerAddress || '',
       district: crmCust.district || '',
+      subdistrict: crmCust.subdistrict || '',
       province: crmCust.province || ThaiProvinces[0],
       zipcode: crmCust.zipcode || '',
       customerTaxId: crmCust.customerTaxId || '',
@@ -524,42 +539,44 @@ export default function AddTransaction({
   };
 
   // Submit Handler for POS Sale Order
-  const handleCheckoutSale = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleCheckoutSale = async () => {
     if (cart.length === 0) return notifyReaction('warning', 'กรุณาเลือกสินค้าลงตะกร้าอย่างน้อย 1 รายการ');
-    if (!customer.name.trim()) return notifyReaction('warning', 'กรุณากรอกชื่อลูกค้า');
+    const customerDisplayName = customer.name.trim() || 'ลูกค้าทั่วไป';
     
     setIsSubmitting(true);
     try {
-      // Automatically link or save customer in CRM
+      // Create/link a CRM customer only when a real customer name was provided.
       let customerId = customer.id;
-      try {
-        customerId = await findOrCreateCustomer({
-          name: customer.name.trim(),
-          phoneNumber: customer.phone.trim(),
-          customerAddress: customer.address.trim(),
-          district: customer.district.trim(),
-          province: customer.province,
-          zipcode: customer.zipcode.trim(),
-          customerTaxId: customer.customerTaxId?.trim() || '',
-          customerBranch: customer.customerBranch?.trim() || '',
-          email: customer.customerEmail?.trim() || '',
-        });
-      } catch (crmErr) {
-        console.error('CRM customer creation notice:', crmErr);
+      if (customer.name.trim()) {
+        try {
+          customerId = await findOrCreateCustomer({
+            name: customer.name.trim(),
+            phoneNumber: customer.phone.trim(),
+            customerAddress: customer.address.trim(),
+            district: customer.district.trim(),
+            province: customer.province,
+            zipcode: customer.zipcode.trim(),
+            customerTaxId: customer.customerTaxId.trim(),
+            customerBranch: customer.customerBranch.trim(),
+            email: customer.customerEmail.trim(),
+          });
+        } catch (crmErr) {
+          console.error('CRM customer creation notice:', crmErr);
+        }
       }
 
       const mainSubcategory = cart[0].name;
-      const detailString = cart.length > 1 
-        ? `${customer.name} - ${mainSubcategory} และอื่นๆ (${cart.length} รายการ)`
-        : `${customer.name} - ${mainSubcategory}`;
+      const detailString = cart.length > 1
+        ? customerDisplayName + ' - ' + mainSubcategory + ' และอื่นๆ (' + cart.length + ' รายการ)'
+        : customerDisplayName + ' - ' + mainSubcategory;
 
       const saleOrderDetails = {
         customerId: customerId || undefined,
         setOption: cart.map(c => `${c.name} (x${c.quantity}) [฿${c.price}]`).join(', '),
-        customerName: customer.name,
+        customerName: customerDisplayName,
         customerAddress: customer.address,
         district: customer.district,
+        subdistrict: customer.subdistrict,
         province: customer.province,
         zipcode: customer.zipcode,
         phoneNumber: customer.phone,
@@ -711,6 +728,20 @@ export default function AddTransaction({
     }
   };
 
+  const resetPosSession = () => {
+    setLastSubmittedTransaction(null);
+    setIsPrintReceiptOpen(false);
+    setCart([]);
+    setDiscountAmount(0);
+    setDiscountType('baht');
+    setShippingFee(0);
+    setCustomer({ id: '', name: '', address: '', district: '', subdistrict: '', province: 'กรุงเทพมหานคร', zipcode: '', phone: '', customerTaxId: '', customerBranch: 'สำนักงานใหญ่', customerEmail: '' });
+    setShipping({ status: 'สั่งซื้อแล้ว', deliveryDate: format(new Date(), 'yyyy-MM-dd'), note: '' });
+    setPayment({ method: paymentMethods[0] || 'เงินสด', status: 'paid', date: format(new Date(), 'yyyy-MM-dd'), receiptUrl: undefined });
+    try { ['klangna_pos_cart','klangna_pos_discountAmount','klangna_pos_discountType','klangna_pos_shippingFee','klangna_pos_customer','klangna_pos_shipping','klangna_pos_payment'].forEach(key => localStorage.removeItem(key)); } catch {}
+    toast.success('พร้อมสำหรับรายการขายใหม่');
+  };
+
   // Success Screen
   if (lastSubmittedTransaction) {
     return (
@@ -770,15 +801,7 @@ export default function AddTransaction({
             </button>
           )}
           <button 
-            onClick={() => {
-              setLastSubmittedTransaction(null);
-              setCart([]);
-              setDiscountAmount(0);
-              setShippingFee(0);
-              setCustomer({ name: '', address: '', district: '', province: ThaiProvinces[0], zipcode: '', phone: '' });
-              setIsPrintReceiptOpen(false);
-              toast.success('พร้อมสำหรับเริ่มรายการขายถัดไป');
-            }}
+            onClick={resetPosSession}
             className="flex-1 py-3.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-900 dark:text-white font-black rounded-2xl transition-all cursor-pointer text-xs"
           >
             + เปิดรายการใหม่
@@ -800,7 +823,7 @@ export default function AddTransaction({
             isOpen={isPrintReceiptOpen}
             transaction={lastSubmittedTransaction}
             shopInfo={config.shopInfo || { name: 'ร้านค้าโซล่าเซลล์', address: '', phone: '', receiptNote: '' }}
-            onClose={() => setIsPrintReceiptOpen(false)}
+            onClose={resetPosSession}
             cartItems={cart}
             discountAmount={discountAmount}
             discountType={discountType}
@@ -1900,7 +1923,7 @@ export default function AddTransaction({
                   <div className="grid grid-cols-2 gap-2">
                     <input 
                       type="text" 
-                      placeholder="ชื่อลูกค้า *" 
+                      placeholder="ชื่อลูกค้า (ไม่กรอกได้ — ลูกค้าทั่วไป)" 
                       value={customer.name}
                       onChange={e => setCustomer({...customer, name: e.target.value})}
                       className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand"
@@ -1930,24 +1953,22 @@ export default function AddTransaction({
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand resize-none"
                   />
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={customer.province}
-                      onChange={e => setCustomer({...customer, province: e.target.value})}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 dark:text-white"
-                    >
-                      {ThaiProvinces.map(p => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
-
-                    <input 
-                      type="text" 
-                      placeholder="รหัสไปรษณีย์" 
-                      value={customer.zipcode}
-                      onChange={e => setCustomer({...customer, zipcode: e.target.value})}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white"
-                    />
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <select value={customer.province} onChange={e => setCustomer({...customer, province: e.target.value, district: '', subdistrict: '', zipcode: ''})} className="w-full min-h-11 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white">
+                        <option value="">เลือกจังหวัด</option>
+                        {(thaiAddressReady ? getProvinces() : ThaiProvinces).map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                      <select value={customer.district} disabled={!customer.province || !thaiAddressReady} onChange={e => setCustomer({...customer, district: e.target.value, subdistrict: '', zipcode: ''})} className="w-full min-h-11 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white disabled:opacity-50">
+                        <option value="">เลือกอำเภอ/เขต</option>
+                        {customer.province && thaiAddressReady && getDistricts(customer.province).map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                      <select value={customer.subdistrict} disabled={!customer.district || !thaiAddressReady} onChange={e => { const subdistrict = e.target.value; setCustomer({...customer, subdistrict, zipcode: customer.province && customer.district && subdistrict ? (getzip_code(customer.province, customer.district, subdistrict) || '') : ''}); }} className="w-full min-h-11 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white disabled:opacity-50">
+                        <option value="">เลือกตำบล/แขวง</option>
+                        {customer.province && customer.district && thaiAddressReady && getSubDistricts(customer.province, customer.district).map(sd => <option key={sd} value={sd}>{sd}</option>)}
+                      </select>
+                    </div>
+                    <input type="text" placeholder="รหัสไปรษณีย์ (อัตโนมัติ)" value={customer.zipcode} readOnly className="w-full min-h-11 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-black text-slate-800 dark:text-white" />
                   </div>
 
                   {/* Tax Invoice Info (Optional) */}
@@ -2167,7 +2188,7 @@ export default function AddTransaction({
                     ) : (
                       <>
                         <CheckCircle2 size={16} />
-                        <span>บันทึกการขาย (฿{formatNumber(netTotalAmount)})</span>
+                        <span>{customer.name.trim() ? `บันทึกการขาย (฿${formatNumber(netTotalAmount)})` : `บันทึกขายทั่วไป (฿${formatNumber(netTotalAmount)})`}</span>
                       </>
                     )}
                   </button>

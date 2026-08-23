@@ -10,6 +10,7 @@ import { ProductCategory, ProductCatalogItem } from '../types';
 import { toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import { notifyReaction } from '../utils/feedback';
+import { useAppConfig } from '../hooks/useAppConfig';
 
 interface ProductInventoryManagerProps {
   categories: ProductCategory[];
@@ -38,6 +39,9 @@ export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = (
   const [searchQuery, setSearchQuery] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [brandFilter, setBrandFilter] = useState<string>('all');
+  const { config } = useAppConfig();
+  const activeBrands = (config.brands || []).filter((brand: any) => brand.isActive);
 
   // Modals & form state
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -57,7 +61,9 @@ export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = (
     minStock: 5,
     description: '',
     isActive: true,
-    itemType: 'product'
+    itemType: 'product',
+    brandId: '',
+    brandName: ''
   });
   const [targetProductCategoryId, setTargetProductCategoryId] = useState<string>('');
 
@@ -79,6 +85,9 @@ export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = (
     // Type filter
     if (typeFilter !== 'all' && (item.itemType || 'product') !== typeFilter) return false;
 
+    // Brand filter keeps legacy brandName records searchable while preferring canonical brandId.
+    if (brandFilter !== 'all' && item.brandId !== brandFilter) return false;
+
     // Stock filter
     const stock = item.inStock || 0;
     const minStock = item.minStock || 5;
@@ -93,7 +102,8 @@ export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = (
       const matchSku = (item.sku || '').toLowerCase().includes(q);
       const matchBarcode = (item.barcode || '').toLowerCase().includes(q);
       const matchCat = (item.categoryName || '').toLowerCase().includes(q);
-      return matchName || matchSku || matchBarcode || matchCat;
+      const matchBrand = (item.brandName || activeBrands.find((brand: any) => brand.id === item.brandId)?.name || '').toLowerCase().includes(q);
+      return matchName || matchSku || matchBarcode || matchCat || matchBrand;
     }
 
     return true;
@@ -193,7 +203,9 @@ export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = (
         minStock: product.item.minStock || 5,
         description: product.item.description || '',
         isActive: product.item.isActive ?? true,
-        itemType: product.item.itemType || 'product'
+        itemType: product.item.itemType || 'product',
+        brandId: product.item.brandId || '',
+        brandName: product.item.brandName || ''
       });
     } else {
       setEditingProduct(null);
@@ -209,7 +221,9 @@ export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = (
         minStock: 3,
         description: '',
         isActive: true,
-        itemType: 'product'
+        itemType: 'product',
+        brandId: '',
+        brandName: ''
       });
     }
     setIsProductModalOpen(true);
@@ -500,6 +514,19 @@ export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = (
           </div>
         </div>
 
+
+          {/* Brand Filter */}
+          <div className="sm:col-span-3">
+            <select
+              value={brandFilter}
+              onChange={(e) => setBrandFilter(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="all">🏷️ ทุกแบรนด์</option>
+              {activeBrands.map((brand: any) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+            </select>
+          </div>
+
         {/* Product List Table / Cards */}
         {filteredProducts.length === 0 ? (
           <div className="py-16 text-center rounded-3xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700">
@@ -523,6 +550,7 @@ export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = (
                 <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-400 uppercase text-[10px] font-black tracking-wider">
                   <th className="py-3 px-4">ชื่อสินค้า / รหัส SKU</th>
                   <th className="py-3 px-3">หมวดหมู่</th>
+                  <th className="py-3 px-3">แบรนด์</th>
                   <th className="py-3 px-3 text-right">ราคาขาย</th>
                   <th className="py-3 px-3 text-right">ราคาทุน</th>
                   <th className="py-3 px-3 text-center">คงเหลือ</th>
@@ -572,6 +600,12 @@ export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = (
                         >
                           <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: prod.categoryColor }} />
                           {prod.categoryName}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-3 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 border border-violet-200 dark:border-violet-800">
+                          {prod.brandName || activeBrands.find((brand: any) => brand.id === prod.brandId)?.name || 'ไม่ระบุ'}
                         </span>
                       </td>
 
@@ -873,6 +907,23 @@ export const ProductInventoryManager: React.FC<ProductInventoryManagerProps> = (
                       className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     />
                   </div>
+                </div>
+
+                {/* Brand */}
+                <div>
+                  <label className="block text-xs font-black text-slate-700 dark:text-slate-300 mb-1">แบรนด์</label>
+                  <select
+                    value={productForm.brandId || ''}
+                    onChange={(e) => {
+                      const brand = activeBrands.find((entry: any) => entry.id === e.target.value);
+                      setProductForm({ ...productForm, brandId: brand?.id || '', brandName: brand?.name || '' });
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
+                  >
+                    <option value="">ไม่ระบุแบรนด์</option>
+                    {activeBrands.map((brand: any) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+                  </select>
+                  {editingProduct && productForm.brandId && !activeBrands.some((brand: any) => brand.id === productForm.brandId) && <p className="mt-1 text-[10px] text-amber-600">แบรนด์นี้ปิดใช้งานแล้ว จึงคงไว้เพื่อรักษาข้อมูลเดิม</p>}
                 </div>
 
                 {/* Price, Cost, Unit */}

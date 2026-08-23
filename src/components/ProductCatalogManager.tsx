@@ -7,6 +7,7 @@ import {
 import { StandardProductSet, StandardProductSetItem, ConfigItem } from '../types';
 import { toast } from 'react-hot-toast';
 import { notifyReaction } from '../utils/feedback';
+import { useAppConfig } from '../hooks/useAppConfig';
 
 interface ProductCatalogManagerProps {
   standardSets: StandardProductSet[];
@@ -31,6 +32,8 @@ export const ProductCatalogManager: React.FC<ProductCatalogManagerProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const { config } = useAppConfig();
+  const activeBrands = (config.brands || []).filter((brand: any) => brand.isActive);
 
   // Flatten all subcategories to show in the link dropdown
   const allSubcategories = incomeCategories.flatMap(cat => 
