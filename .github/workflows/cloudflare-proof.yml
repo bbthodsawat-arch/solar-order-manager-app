@@ -2,16 +2,23 @@ name: Cloudflare Proof of Deployment
 
 on:
   push:
-    branches: [main]
+    branches: [cloudflare-proof]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: cloudflare-proof-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  WRANGLER_VERSION: 4.116.0
+
 jobs:
   cloudflare-proof:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,8 +35,43 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Verify Wrangler configuration
-        run: npx wrangler@latest deploy --dry-run
+      - name: Validate Wrangler configuration
+        run: npx wrangler@${WRANGLER_VERSION} check
+
+      - name: Verify Wrangler deployment bundle
+        run: npx wrangler@${WRANGLER_VERSION} deploy --dry-run --outdir .wrangler/deploy-output
 
       - name: Temporary Cloudflare proof deployment
-        run: npx wrangler@latest deploy --temporary
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler@${WRANGLER_VERSION} deploy --temporary 2>&1 | tee cloudflare-deploy.log
+
+          PREVIEW_URL="$(grep -Eo 'https://[A-Za-z0-9.-]+\.workers\.dev' cloudflare-deploy.log | tail -n 1 || true)"
+          if [[ -z "$PREVIEW_URL" ]]; then
+            echo "Could not extract the temporary Cloudflare workers.dev URL"
+            exit 1
+          fi
+
+          echo "Cloudflare preview: $PREVIEW_URL"
+          echo "CLOUDFLARE_PREVIEW_URL=$PREVIEW_URL" >> "$GITHUB_ENV"
+          {
+            echo "### Cloudflare temporary proof"
+            echo "- Preview: $PREVIEW_URL"
+            echo "- Commit: $GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify Cloudflare health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --show-error --silent --retry 8 --retry-delay 3 \
+            --retry-all-errors \
+            "$CLOUDFLARE_PREVIEW_URL/api/health" \
+            | tee cloudflare-health.json
+
+      - name: Verify health payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("cloudflare-health.json","utf8")); if(p.status!=="ok" || p.runtime!=="cloudflare-workers") process.exit(1); console.log("Cloudflare health payload verified")'

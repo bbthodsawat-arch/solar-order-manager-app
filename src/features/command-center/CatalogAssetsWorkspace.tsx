@@ -4,7 +4,7 @@ import { AssetManager } from '../../components/AssetManager';
 import type { CommandDefinition } from './registry';
 
 export type CatalogAssetsCommand = 'catalog.assets';
-export const CATALOG_ASSETS_COMMANDS: CommandDefinition[] = [{ id:'catalog.assets', domain:'catalog', title:'ทรัพย์สินและค่าเสื่อม', description:'ทะเบียนสินทรัพย์ อุปกรณ์ ค่าเสื่อมราคา สถานที่ และผู้รับผิดชอบ', keywords:['asset','depreciation','equipment','location','ทรัพย์สิน','ค่าเสื่อม','อุปกรณ์'], permission:'canManageInventory', quickAction:true, workspaceStatus:'native' }];
+export const CATALOG_ASSETS_COMMANDS: CommandDefinition[] = [{ id:'catalog.assets', domain:'catalog', title:'ทรัพย์สินและค่าเสื่อม', description:'ทะเบียนสินทรัพย์ อุปกรณ์ ค่าเสื่อมราคา สถานที่ และผู้รับผิดชอบ', keywords:['asset','depreciation','equipment','location','ทรัพย์สิน','ค่าเสื่อม','อุปกรณ์'], permission:'canManageAssets', quickAction:true, workspaceStatus:'native' }];
 interface Props { activeCommand?: CatalogAssetsCommand; onActiveCommandChange?: (command: CatalogAssetsCommand) => void; }
 export function CatalogAssetsWorkspace({ activeCommand='catalog.assets', onActiveCommandChange }: Props) {
  const { config, addAsset, updateAsset, deleteAsset } = useAppConfig();
