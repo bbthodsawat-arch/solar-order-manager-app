@@ -8,21 +8,17 @@ Make the Command Center a reliable control plane with six domains, deterministic
 - Quick Actions and navigation use one permission-filtered registry.
 - Recoverable empty states exist for denied/empty search results.
 - Business + Catalog workspaces are integrated.
-- Experience, Automation, Security, and System workspaces are now mounted as native Command Center surfaces.
-- Automation uses the existing Daily Reminder implementation.
-- Experience uses the existing Design System / Theme Studio implementation.
-- Security uses the existing Access & Login Control implementation with RBAC/Firebase policy messaging.
-- System Data uses the existing Backup/Restore implementation.
-- System Maintenance uses the existing authorization-gated Factory Reset implementation with confirmation and audit logging.
-- Command Center regression validates all six domains and the native/legacy migration boundary.
+- Experience, Automation, Security, and System workspaces are mounted as native Command Center surfaces.
+- Business Configuration is now a native workspace backed by the existing ConfigManager persistence path.
+- Catalog Assets is now a native workspace backed by the existing AssetManager persistence and depreciation logic.
+- All 13 registered commands are now `native`; no command remains `legacy` or `planned`.
+- Command Center regression validates all six domains, native workspace mounting, health, permissions, and zero-legacy boundary.
 - Production build continues to run the Command Center regression gate before Vite compilation.
 
 ## Migration boundary
-- **Native:** business.profile, business.brand, business.documents, catalog.products, catalog.inventory, experience.design, automation.workflows, security.access, security.login, system.data, system.maintenance.
-- **Legacy:** business.configuration, catalog.assets.
+- **Native:** all 13 registered commands across business, catalog, experience, automation, security, and system.
+- **Legacy:** none.
 - **Planned:** none.
-
-The two remaining legacy commands stay explicitly marked so they cannot silently become part of the native surface without a migration decision and regression coverage.
 
 ## Safety
 UI permission checks are UX guards only. Destructive system operations retain their own authorization checks, confirmation requirements, and audit trail at the service layer.
@@ -33,7 +29,6 @@ UI permission checks are UX guards only. Destructive system operations retain th
 - No claim of Production rollout is made until Vercel reports a READY deployment for the current `main` commit.
 
 ## Next
-1. Migrate `business.configuration` into a native configuration workspace.
-2. Migrate `catalog.assets` into a native asset workspace.
-3. Add browser-level smoke coverage for command search, permission filtering, and workspace activation.
-4. Promote the resulting `main` commit through Vercel and verify production smoke endpoints.
+1. Add browser-level smoke coverage for command search, permission filtering, and workspace activation.
+2. Promote the resulting `main` commit through Vercel and verify production smoke endpoints.
+3. Continue improving native workspace UX without reintroducing legacy launch surfaces.
