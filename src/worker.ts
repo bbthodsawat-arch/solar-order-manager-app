@@ -1,8 +1,12 @@
-interface Env {
-  ASSETS: Fetcher;
+interface AssetFetcher {
+  fetch(request: Request): Promise<Response>;
 }
 
-export default {
+interface Env {
+  ASSETS: AssetFetcher;
+}
+
+const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
@@ -16,4 +20,6 @@ export default {
 
     return env.ASSETS.fetch(request);
   },
-} satisfies ExportedHandler<Env>;
+};
+
+export default worker;
