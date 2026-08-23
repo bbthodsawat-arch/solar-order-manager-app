@@ -3,19 +3,19 @@ import fs from 'node:fs';
 const path = 'src/pages/AddTransaction.tsx';
 let source = fs.readFileSync(path, 'utf8');
 
-if (!source.includes("from 'thai-address-select'")) {
-  source = source.replace(
-    "import { suggestCategory } from '../utils/categorySuggestions';",
-    "import { suggestCategory } from '../utils/categorySuggestions';\nimport { loadData, getProvinces, getDistricts, getSubDistricts, getzip_code } from 'thai-address-select';"
-  );
-}
+// Keep the Thai address dataset out of the initial application bundle.
+// The POS address controls load it only when AddTransaction is mounted.
+source = source.replace(
+  "import { suggestCategory } from '../utils/categorySuggestions';\nimport { loadData, getProvinces, getDistricts, getSubDistricts, getzip_code } from 'thai-address-select';",
+  "import { suggestCategory } from '../utils/categorySuggestions';"
+);
 
 source = source.replace("province: ThaiProvinces[0],\n      zipcode: '',", "province: 'กรุงเทพมหานคร',\n      subdistrict: '',\n      zipcode: '',");
 
 if (!source.includes('const [thaiAddressReady')) {
   source = source.replace(
     '  // Delivery / Shipping\n',
-    "  const [thaiAddressReady, setThaiAddressReady] = useState(false);\n\n  useEffect(() => {\n    let active = true;\n    loadData().then(() => { if (active) setThaiAddressReady(true); }).catch((error) => {\n      console.error('Thai address data failed to load:', error);\n      notifyReaction('error', 'ไม่สามารถโหลดฐานข้อมูลที่อยู่ไทยได้');\n    });\n    return () => { active = false; };\n  }, []);\n\n  // Delivery / Shipping\n",
+    "  const [thaiAddressReady, setThaiAddressReady] = useState(false);\n  const [thaiAddressApi, setThaiAddressApi] = useState<null | { getProvinces: () => string[]; getDistricts: (province: string) => string[]; getSubDistricts: (province: string, district: string) => string[]; getzip_code: (province: string, district: string, subdistrict: string) => string }>(null);\n\n  useEffect(() => {\n    let active = true;\n    import('thai-address-select').then(async (module) => {\n      await module.loadData();\n      if (!active) return;\n      setThaiAddressApi({\n        getProvinces: module.getProvinces,\n        getDistricts: module.getDistricts,\n        getSubDistricts: module.getSubDistricts,\n        getzip_code: module.getzip_code,\n      });\n      setThaiAddressReady(true);\n    }).catch((error) => {\n      console.error('Thai address data failed to load:', error);\n      notifyReaction('error', 'ไม่สามารถโหลดฐานข้อมูลที่อยู่ไทยได้');\n    });\n    return () => { active = false; };\n  }, []);\n\n  // Delivery / Shipping\n",
     1
   );
 }
@@ -96,15 +96,15 @@ const newAddress = `                  <div className="space-y-2">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <select value={customer.province} onChange={e => setCustomer({...customer, province: e.target.value, district: '', subdistrict: '', zipcode: ''})} className="w-full min-h-11 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white">
                         <option value="">เลือกจังหวัด</option>
-                        {(thaiAddressReady ? getProvinces() : ThaiProvinces).map(p => <option key={p} value={p}>{p}</option>)}
+                        {(thaiAddressReady && thaiAddressApi ? thaiAddressApi.getProvinces() : ThaiProvinces).map(p => <option key={p} value={p}>{p}</option>)}
                       </select>
-                      <select value={customer.district} disabled={!customer.province || !thaiAddressReady} onChange={e => setCustomer({...customer, district: e.target.value, subdistrict: '', zipcode: ''})} className="w-full min-h-11 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white disabled:opacity-50">
+                      <select value={customer.district} disabled={!customer.province || !thaiAddressReady || !thaiAddressApi} onChange={e => setCustomer({...customer, district: e.target.value, subdistrict: '', zipcode: ''})} className="w-full min-h-11 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white disabled:opacity-50">
                         <option value="">เลือกอำเภอ/เขต</option>
-                        {customer.province && thaiAddressReady && getDistricts(customer.province).map(d => <option key={d} value={d}>{d}</option>)}
+                        {customer.province && thaiAddressReady && thaiAddressApi && thaiAddressApi.getDistricts(customer.province).map(d => <option key={d} value={d}>{d}</option>)}
                       </select>
-                      <select value={customer.subdistrict} disabled={!customer.district || !thaiAddressReady} onChange={e => { const subdistrict = e.target.value; setCustomer({...customer, subdistrict, zipcode: customer.province && customer.district && subdistrict ? getzip_code(customer.province, customer.district, subdistrict) : ''}); }} className="w-full min-h-11 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white disabled:opacity-50">
+                      <select value={customer.subdistrict} disabled={!customer.district || !thaiAddressReady || !thaiAddressApi} onChange={e => { const subdistrict = e.target.value; setCustomer({...customer, subdistrict, zipcode: customer.province && customer.district && subdistrict && thaiAddressApi ? thaiAddressApi.getzip_code(customer.province, customer.district, subdistrict) : ''}); }} className="w-full min-h-11 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 dark:text-white disabled:opacity-50">
                         <option value="">เลือกตำบล/แขวง</option>
-                        {customer.province && customer.district && thaiAddressReady && getSubDistricts(customer.province, customer.district).map(sd => <option key={sd} value={sd}>{sd}</option>)}
+                        {customer.province && customer.district && thaiAddressReady && thaiAddressApi && thaiAddressApi.getSubDistricts(customer.province, customer.district).map(sd => <option key={sd} value={sd}>{sd}</option>)}
                       </select>
                     </div>
                     <input type="text" placeholder="รหัสไปรษณีย์ (อัตโนมัติ)" value={customer.zipcode} readOnly className="w-full min-h-11 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-black text-slate-800 dark:text-white" />
